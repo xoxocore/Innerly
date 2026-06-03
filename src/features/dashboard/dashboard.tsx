@@ -84,7 +84,7 @@ export function Dashboard() {
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-foreground transition-colors duration-300 group-hover:bg-[#fdebd9] group-hover:text-[#b45309] dark:group-hover:bg-[#2b3038] dark:group-hover:text-[#cbd5e1]">
               <Icon className="h-[17px] w-[17px]" />
             </span>
-            <h3 className="mt-3 text-sm font-medium leading-snug text-heading">
+            <h3 className="title-strong mt-3 text-sm leading-snug text-heading">
               {title}
             </h3>
             <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
