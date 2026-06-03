@@ -36,8 +36,55 @@ const FEATURES = [
   { view: "vision-board" as const, icon: ImageIcon, title: c.featureVisionTitle, desc: c.featureVisionDesc },
 ];
 
+// Liquid-glass feature tile with a sunrise glow that blooms from behind on hover
+// (silver moonlight in night mode).
+function FeatureCard({
+  feature,
+  night,
+  onClick,
+}: {
+  feature: (typeof FEATURES)[number];
+  night: boolean;
+  onClick: () => void;
+}) {
+  const Icon = feature.icon;
+  const bloom = night
+    ? "radial-gradient(55% 55% at 50% 0%, rgba(209,218,242,0.60), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(188,200,230,0.50), transparent 72%)"
+    : "radial-gradient(55% 55% at 50% 0%, rgba(255,178,107,0.85), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(255,143,82,0.62), transparent 72%)";
+
+  return (
+    <motion.button
+      onClick={onClick}
+      variants={{ hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0 } }}
+      whileHover={{ y: -4 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 280, damping: 24 }}
+      className="group relative rounded-2xl text-left"
+    >
+      {/* sunrise bloom behind the glass */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute -inset-3 -z-10 rounded-[2rem] opacity-0 blur-2xl transition-opacity duration-500 ease-out group-hover:opacity-100"
+        style={{ background: bloom }}
+      />
+      {/* liquid glass surface */}
+      <span className="relative block overflow-hidden rounded-2xl border border-border/60 bg-card/60 p-4 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary/70 text-foreground transition-colors duration-300 group-hover:bg-[#fdebd9] group-hover:text-[#b45309] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
+          <Icon className="h-[17px] w-[17px]" />
+        </span>
+        <h3 className="title-strong mt-3 text-sm leading-snug text-heading">
+          {feature.title}
+        </h3>
+        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+          {feature.desc}
+        </p>
+      </span>
+    </motion.button>
+  );
+}
+
 export function Dashboard() {
-  const { profile, navigate } = useApp();
+  const { profile, navigate, night } = useApp();
   const [reflections] = useReflections();
   const [checked, setChecked] = useRemindersChecked();
 
@@ -57,7 +104,18 @@ export function Dashboard() {
   const latestPost = BLOG_POSTS[0];
 
   return (
-    <div className="space-y-6">
+    <div className="relative isolate space-y-6">
+      {/* dawn ambient — a whisper of sunrise (moonlight at night) */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-10 left-0 right-0 -z-10 h-56"
+        style={{
+          background: night
+            ? "radial-gradient(60% 100% at 50% 0%, rgba(190,202,232,0.10), transparent 70%)"
+            : "radial-gradient(60% 100% at 50% 0%, rgba(255,196,140,0.16), transparent 70%)",
+        }}
+      />
+
       {/* Hero */}
       <header>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -71,35 +129,29 @@ export function Dashboard() {
         </p>
       </header>
 
-      {/* Feature cards — separated, with a soft warm "sunrise" glow */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {FEATURES.map(({ view, icon: Icon, title, desc }) => (
-          <motion.button
-            key={view}
-            onClick={() => navigate(view)}
-            whileHover={{ y: -3 }}
-            transition={{ type: "spring", stiffness: 300, damping: 26 }}
-            className="group rounded-2xl border border-border/70 bg-card p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_6px_16px_-10px_rgba(15,23,42,0.10)] transition-shadow duration-500 ease-out hover:shadow-[0_8px_20px_-8px_rgba(15,23,42,0.10),0_24px_54px_-16px_rgba(251,146,60,0.55)] dark:hover:shadow-[0_8px_20px_-8px_rgba(0,0,0,0.45),0_24px_54px_-16px_rgba(199,210,229,0.45)]"
-          >
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-foreground transition-colors duration-300 group-hover:bg-[#fdebd9] group-hover:text-[#b45309] dark:group-hover:bg-[#2b3038] dark:group-hover:text-[#cbd5e1]">
-              <Icon className="h-[17px] w-[17px]" />
-            </span>
-            <h3 className="title-strong mt-3 text-sm leading-snug text-heading">
-              {title}
-            </h3>
-            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-              {desc}
-            </p>
-          </motion.button>
+      {/* Feature cards — liquid glass with a sunrise bloom on hover */}
+      <motion.div
+        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-2 gap-4 md:grid-cols-4"
+      >
+        {FEATURES.map((f) => (
+          <FeatureCard
+            key={f.view}
+            feature={f}
+            night={night}
+            onClick={() => navigate(f.view)}
+          />
         ))}
-      </div>
+      </motion.div>
 
       {/* Today + Reminders */}
       <div className="grid gap-4 lg:grid-cols-2">
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
 
         {/* Reminders to yourself */}
-        <Card className="p-5">
+        <Card className="border-border/60 bg-card/60 p-5 backdrop-blur-xl">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {c.remindersEyebrow}
           </p>
@@ -151,7 +203,7 @@ export function Dashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         <NightCheckIn />
         <button onClick={() => navigate("blog")} className="block w-full text-left">
-          <Card className="h-full overflow-hidden transition-colors hover:bg-accent">
+          <Card className="h-full overflow-hidden border-border/60 bg-card/60 backdrop-blur-xl transition-colors hover:bg-accent/60">
             <div
               className="h-20 w-full"
               style={{ backgroundImage: gradient(latestPost.gradient) }}
@@ -194,7 +246,7 @@ function TodoList({
   };
 
   return (
-    <Card className="flex flex-col p-5">
+    <Card className="flex flex-col border-border/60 bg-card/60 p-5 backdrop-blur-xl">
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
@@ -332,7 +384,7 @@ function NightCheckIn() {
   };
 
   return (
-    <Card className="p-5">
+    <Card className="border-border/60 bg-card/60 p-5 backdrop-blur-xl">
       <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
         {c.nightEyebrow}
       </p>
