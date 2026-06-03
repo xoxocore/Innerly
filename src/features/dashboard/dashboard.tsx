@@ -104,18 +104,7 @@ export function Dashboard() {
   const latestPost = BLOG_POSTS[0];
 
   return (
-    <div className="relative isolate space-y-6">
-      {/* dawn ambient — a whisper of sunrise (moonlight at night) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-10 left-0 right-0 -z-10 h-56"
-        style={{
-          background: night
-            ? "radial-gradient(60% 100% at 50% 0%, rgba(190,202,232,0.10), transparent 70%)"
-            : "radial-gradient(60% 100% at 50% 0%, rgba(255,196,140,0.16), transparent 70%)",
-        }}
-      />
-
+    <div className="space-y-6">
       {/* Hero */}
       <header>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
