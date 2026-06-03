@@ -103,7 +103,7 @@ export function Dashboard() {
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {c.remindersEyebrow}
           </p>
-          <h2 className="mt-1.5 text-[15px] text-heading">{c.remindersTitle}</h2>
+          <h2 className="title-medium mt-1.5 text-[15px] text-heading">{c.remindersTitle}</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
             {c.remindersDesc}
           </p>
@@ -160,7 +160,7 @@ export function Dashboard() {
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {c.blogEyebrow}
               </p>
-              <h3 className="mt-1.5 text-[15px] text-heading">{latestPost.title}</h3>
+              <h3 className="title-medium mt-1.5 text-[15px] text-heading">{latestPost.title}</h3>
               <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
                 {latestPost.excerpt}
               </p>
@@ -198,7 +198,7 @@ function TodoList({
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-[15px] tracking-tight text-heading">{c.todayTitle}</h2>
+          <h2 className="title-medium text-[15px] tracking-tight text-heading">{c.todayTitle}</h2>
           <p className="mt-1 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <CalendarDays className="h-3.5 w-3.5" /> {dateLabel}
           </p>
@@ -336,7 +336,7 @@ function NightCheckIn() {
       <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
         {c.nightEyebrow}
       </p>
-      <h2 className="mt-1.5 text-[15px] text-heading">{c.nightTitle}</h2>
+      <h2 className="title-medium mt-1.5 text-[15px] text-heading">{c.nightTitle}</h2>
 
       {phase === "ask" && (
         <>

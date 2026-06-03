@@ -123,10 +123,13 @@ h4 {
   font-weight: 300 !important;
 }
 
-/* Opt-out for specific titles that should stay semibold (e.g. feature cards).
+/* Opt-outs for titles that need more presence than the light default.
    Class specificity beats the element rule above, even with !important. */
 .title-strong {
   font-weight: 600 !important;
+}
+.title-medium {
+  font-weight: 500 !important;
 }
 
 /* contentEditable placeholder for the rich-text editor */
