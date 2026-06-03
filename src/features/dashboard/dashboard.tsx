@@ -46,8 +46,8 @@ function TurquoiseGlow({ className }: { className?: string }) {
         background:
           "radial-gradient(circle, rgba(45,212,191,0.30), rgba(94,234,212,0.12) 45%, rgba(45,212,191,0) 72%)",
       }}
-      animate={{ opacity: [0.45, 0.8, 0.45], scale: [1, 1.12, 1] }}
-      transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
+      animate={{ opacity: [0.3, 0.55, 0.3], scale: [1, 1.1, 1] }}
+      transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
     />
   );
 }
@@ -73,39 +73,39 @@ export function Dashboard() {
   const latestPost = BLOG_POSTS[0];
 
   return (
-    <div className="relative isolate space-y-10">
-      <TurquoiseGlow className="-top-28 left-1/2 h-72 w-[42rem] -translate-x-1/2" />
+    <div className="relative isolate space-y-7">
+      <TurquoiseGlow className="-top-20 left-1/2 h-52 w-[30rem] -translate-x-1/2" />
 
       {/* Hero */}
       <header>
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           {c.breadcrumb}
         </p>
-        <h1 className="mt-3 max-w-3xl text-[2.75rem] font-light leading-[1.08] tracking-tight text-heading">
+        <h1 className="mt-2.5 max-w-2xl text-[1.6rem] font-light leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
           {fill(c.greeting, { name })}
         </h1>
-        <p className="mt-3 inline-flex items-center gap-2 text-[15px] text-muted-foreground">
-          <CalendarDays className="h-4 w-4" /> {dateLabel}
+        <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <CalendarDays className="h-3.5 w-3.5" /> {dateLabel}
         </p>
       </header>
 
-      {/* Feature cards — one row */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* Feature cards — one compact row */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {FEATURES.map(({ view, icon: Icon, title, desc }) => (
           <motion.button
             key={view}
             onClick={() => navigate(view)}
-            whileHover={{ y: -4 }}
+            whileHover={{ y: -3 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="group rounded-3xl border border-border bg-card p-5 text-left transition-shadow hover:shadow-[0_12px_40px_-12px_rgba(45,212,191,0.5)]"
+            className="group rounded-2xl border border-border bg-card p-4 text-left transition-shadow hover:shadow-[0_10px_30px_-12px_rgba(45,212,191,0.45)]"
           >
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-secondary text-foreground transition-colors group-hover:bg-[#ccfbf1] group-hover:text-[#0f766e]">
-              <Icon className="h-5 w-5" />
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-foreground transition-colors group-hover:bg-[#ccfbf1] group-hover:text-[#0f766e]">
+              <Icon className="h-[17px] w-[17px]" />
             </span>
-            <h3 className="mt-4 text-[17px] font-semibold leading-snug text-heading">
+            <h3 className="mt-3 text-sm font-semibold leading-snug text-heading">
               {title}
             </h3>
-            <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
               {desc}
             </p>
           </motion.button>
@@ -113,7 +113,7 @@ export function Dashboard() {
       </div>
 
       {/* Today + Reminders */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
 
         {/* Reminders to yourself */}
@@ -166,7 +166,7 @@ export function Dashboard() {
       </div>
 
       {/* Secondary: nightly check-in + blog */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <NightCheckIn />
         <button onClick={() => navigate("blog")} className="block w-full text-left">
           <Card className="h-full overflow-hidden transition-colors hover:bg-accent">
@@ -216,7 +216,7 @@ function TodoList({
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-heading">
+          <h2 className="text-lg font-semibold tracking-tight text-heading">
             {c.todayTitle}
           </h2>
           <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">

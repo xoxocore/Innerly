@@ -8,15 +8,15 @@ export function ScreenHeader({
   subtitle?: string;
 }) {
   return (
-    <header className="mb-8">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+    <header className="mb-7">
+      <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
         {breadcrumb}
       </p>
-      <h1 className="mt-3 text-[2.25rem] font-bold leading-[1.1] tracking-tight text-heading">
+      <h1 className="mt-2.5 text-[1.6rem] font-semibold leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
         {title}
       </h1>
       {subtitle && (
-        <p className="mt-3 max-w-xl text-lg leading-relaxed text-muted-foreground">
+        <p className="mt-2.5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
           {subtitle}
         </p>
       )}

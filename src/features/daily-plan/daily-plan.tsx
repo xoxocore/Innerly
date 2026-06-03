@@ -120,14 +120,14 @@ export function DailyPlan() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+          <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
             Innerly · Daily Plan
           </p>
-          <h1 className="mt-3 text-[2.5rem] font-bold leading-[1.05] tracking-tight text-heading">
+          <h1 className="mt-2.5 text-[1.6rem] font-semibold leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
             Daily Plan
           </h1>
-          <p className="mt-3 inline-flex items-center gap-2 text-[15px] text-muted-foreground">
-            <CalendarDays className="h-4 w-4" /> {dateLabel}
+          <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+            <CalendarDays className="h-3.5 w-3.5" /> {dateLabel}
           </p>
         </div>
         <button
