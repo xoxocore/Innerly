@@ -123,7 +123,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="flex-1">
-        <div className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 lg:py-12">
+        <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 lg:py-12">
           {children}
         </div>
       </main>
