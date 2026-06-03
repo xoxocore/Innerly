@@ -57,7 +57,7 @@ export function Dashboard() {
   const latestPost = BLOG_POSTS[0];
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       {/* Hero */}
       <header>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -79,9 +79,9 @@ export function Dashboard() {
             onClick={() => navigate(view)}
             whileHover={{ y: -3 }}
             transition={{ type: "spring", stiffness: 300, damping: 26 }}
-            className="group rounded-2xl border border-border/70 bg-card p-4 text-left shadow-[0_2px_10px_-6px_rgba(15,23,42,0.10),0_10px_28px_-18px_rgba(251,146,60,0.30)] transition-shadow duration-300 hover:shadow-[0_6px_18px_-8px_rgba(15,23,42,0.10),0_20px_48px_-16px_rgba(251,146,60,0.55)]"
+            className="group rounded-2xl border border-border/70 bg-card p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_6px_16px_-10px_rgba(15,23,42,0.10)] transition-shadow duration-500 ease-out hover:shadow-[0_8px_20px_-8px_rgba(15,23,42,0.10),0_24px_54px_-16px_rgba(251,146,60,0.55)] dark:hover:shadow-[0_8px_20px_-8px_rgba(0,0,0,0.45),0_24px_54px_-16px_rgba(199,210,229,0.45)]"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-foreground transition-colors group-hover:bg-[#fdebd9] group-hover:text-[#b45309]">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-foreground transition-colors duration-300 group-hover:bg-[#fdebd9] group-hover:text-[#b45309] dark:group-hover:bg-[#2b3038] dark:group-hover:text-[#cbd5e1]">
               <Icon className="h-[17px] w-[17px]" />
             </span>
             <h3 className="mt-3 text-sm font-medium leading-snug text-heading">
@@ -95,31 +95,31 @@ export function Dashboard() {
       </div>
 
       {/* Today + Reminders */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
 
         {/* Reminders to yourself */}
-        <Card className="p-6">
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <Card className="p-5">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {c.remindersEyebrow}
           </p>
-          <h2 className="mt-2 text-lg font-medium text-heading">{c.remindersTitle}</h2>
-          <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">
+          <h2 className="mt-1.5 text-[15px] text-heading">{c.remindersTitle}</h2>
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
             {c.remindersDesc}
           </p>
 
           {reminders.length === 0 ? (
-            <Button variant="secondary" className="mt-5" onClick={() => navigate("reflect")}>
+            <Button variant="secondary" size="sm" className="mt-4" onClick={() => navigate("reflect")}>
               {c.remindersCta}
             </Button>
           ) : (
             <>
-              <ul className="mt-5 space-y-2.5">
+              <ul className="mt-4 space-y-2">
                 {reminders.map((r) => (
                   <li key={r}>
                     <button
                       onClick={() => setChecked((p) => ({ ...p, [r]: !p[r] }))}
-                      className="flex w-full items-start gap-3 text-left text-[15px] leading-relaxed"
+                      className="flex w-full items-start gap-3 text-left text-sm leading-relaxed"
                     >
                       <span
                         className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors"
@@ -137,7 +137,7 @@ export function Dashboard() {
                   </li>
                 ))}
               </ul>
-              <p className="mt-4 text-sm text-muted-foreground">
+              <p className="mt-3 text-[13px] text-muted-foreground">
                 {actingOn === reminders.length
                   ? c.remindersAllClear
                   : `${actingOn} of ${reminders.length} — ${c.remindersProgress}`}
@@ -148,25 +148,25 @@ export function Dashboard() {
       </div>
 
       {/* Secondary: nightly check-in + blog */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         <NightCheckIn />
         <button onClick={() => navigate("blog")} className="block w-full text-left">
           <Card className="h-full overflow-hidden transition-colors hover:bg-accent">
             <div
-              className="h-24 w-full"
+              className="h-20 w-full"
               style={{ backgroundImage: gradient(latestPost.gradient) }}
             />
-            <div className="p-6">
-              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            <div className="p-5">
+              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {c.blogEyebrow}
               </p>
-              <h3 className="mt-2 text-lg font-medium text-heading">{latestPost.title}</h3>
-              <p className="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
+              <h3 className="mt-1.5 text-[15px] text-heading">{latestPost.title}</h3>
+              <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
                 {latestPost.excerpt}
               </p>
-              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-foreground">
+              <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-foreground">
                 {c.blogReadMore}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-3.5 w-3.5" />
               </span>
             </div>
           </Card>
@@ -194,29 +194,27 @@ function TodoList({
   };
 
   return (
-    <Card className="flex flex-col p-6">
+    <Card className="flex flex-col p-5">
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-medium tracking-tight text-heading">
-            {c.todayTitle}
-          </h2>
-          <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+          <h2 className="text-[15px] tracking-tight text-heading">{c.todayTitle}</h2>
+          <p className="mt-1 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <CalendarDays className="h-3.5 w-3.5" /> {dateLabel}
           </p>
         </div>
         <button
           onClick={onOpenPlan}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="inline-flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          <ListChecks className="h-4 w-4" /> All Tasks
+          <ListChecks className="h-3.5 w-3.5" /> All Tasks
         </button>
       </div>
 
       {/* rows */}
-      <div className="mt-5 flex-1">
+      <div className="mt-4 flex-1">
         {today.total === 0 ? (
-          <p className="py-6 text-[15px] leading-relaxed text-muted-foreground">
+          <p className="py-5 text-[13px] leading-relaxed text-muted-foreground">
             {c.todayEmpty}
           </p>
         ) : (
@@ -231,7 +229,7 @@ function TodoList({
       </div>
 
       {/* add */}
-      <div className="mt-4 border-t border-border pt-4">
+      <div className="mt-3 border-t border-border pt-3">
         {adding ? (
           <form
             className="flex gap-2"
@@ -246,18 +244,18 @@ function TodoList({
               onChange={(e) => setValue(e.target.value)}
               onBlur={() => !value && setAdding(false)}
               placeholder="What's on for today?"
-              className="flex-1 rounded-2xl border border-input bg-card px-4 py-2.5 text-[15px] outline-none focus:border-ring"
+              className="flex-1 rounded-xl border border-input bg-card px-3.5 py-2 text-sm outline-none focus:border-ring"
             />
-            <Button type="submit" size="icon" aria-label="Add">
-              <Plus className="h-5 w-5" />
+            <Button type="submit" size="icon" aria-label="Add" className="h-9 w-9">
+              <Plus className="h-4 w-4" />
             </Button>
           </form>
         ) : (
           <button
             onClick={() => setAdding(true)}
-            className="mx-auto flex items-center gap-2 text-[15px] font-medium text-foreground transition-colors hover:text-[#0f766e]"
+            className="mx-auto flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-[#0f766e]"
           >
-            <Plus className="h-5 w-5" /> Add Task
+            <Plus className="h-4 w-4" /> Add Task
           </button>
         )}
       </div>
@@ -275,12 +273,12 @@ function TodoRow({ item, onToggle }: { item: TodayItem; onToggle: () => void }) 
     >
       <button
         onClick={onToggle}
-        className="flex w-full items-center gap-3 rounded-2xl border-b border-border px-2 py-3.5 text-left last:border-b-0 hover:bg-accent/60"
+        className="flex w-full items-center gap-3 rounded-xl border-b border-border px-2 py-3 text-left last:border-b-0 hover:bg-accent/60"
       >
         <div className="min-w-0 flex-1">
           <p
             className={cn(
-              "truncate text-[15px] font-medium leading-snug text-foreground",
+              "truncate text-sm leading-snug text-foreground",
               item.done && "text-muted-foreground line-through"
             )}
           >
@@ -299,13 +297,13 @@ function TodoRow({ item, onToggle }: { item: TodayItem; onToggle: () => void }) 
         </div>
         <motion.span
           whileTap={{ scale: 0.85 }}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full border transition-colors"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors"
           style={{
             borderColor: item.done ? DONE_GREEN : "var(--border)",
             backgroundColor: item.done ? DONE_GREEN : "transparent",
           }}
         >
-          {item.done && <Check className="h-4 w-4 text-white" />}
+          {item.done && <Check className="h-3.5 w-3.5 text-white" />}
         </motion.span>
       </button>
     </motion.li>
@@ -334,20 +332,20 @@ function NightCheckIn() {
   };
 
   return (
-    <Card className="p-6">
-      <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+    <Card className="p-5">
+      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
         {c.nightEyebrow}
       </p>
-      <h2 className="mt-2 text-lg font-medium text-heading">{c.nightTitle}</h2>
+      <h2 className="mt-1.5 text-[15px] text-heading">{c.nightTitle}</h2>
 
       {phase === "ask" && (
         <>
-          <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">
+          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
             {c.nightAsk}
           </p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Button onClick={() => setPhase("write")}>{c.nightYes}</Button>
-            <Button variant="secondary" onClick={() => setPhase("skipped")}>
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            <Button size="sm" onClick={() => setPhase("write")}>{c.nightYes}</Button>
+            <Button size="sm" variant="secondary" onClick={() => setPhase("skipped")}>
               {c.nightNo}
             </Button>
           </div>
@@ -356,7 +354,7 @@ function NightCheckIn() {
 
       {phase === "write" && (
         <>
-          <p className="mt-4 text-[15px] font-medium text-foreground">{c.nightWritePrompt}</p>
+          <p className="mt-3 text-sm font-medium text-foreground">{c.nightWritePrompt}</p>
           <div className="mt-3">
             <MultiAdd
               values={notes}
@@ -365,17 +363,17 @@ function NightCheckIn() {
               addLabel={copy.manifestation.addAnother}
             />
           </div>
-          <Button className="mt-5" onClick={save}>
+          <Button size="sm" className="mt-4" onClick={save}>
             {c.nightSave}
           </Button>
         </>
       )}
 
       {phase === "saved" && (
-        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">{c.nightSaved}</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{c.nightSaved}</p>
       )}
       {phase === "skipped" && (
-        <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">{c.nightSkipped}</p>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{c.nightSkipped}</p>
       )}
     </Card>
   );

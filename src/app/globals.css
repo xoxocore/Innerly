@@ -111,6 +111,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+  Unified heading weight — every title across the app uses the same light
+  weight as the dashboard greeting. This rule is intentionally unlayered so it
+  wins over Tailwind's font-* utilities (cascade layers rank below unlayered).
+*/
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 300 !important;
+}
+
 /* contentEditable placeholder for the rich-text editor */
 [data-placeholder]:empty::before {
   content: attr(data-placeholder);
