@@ -1,244 +1,413 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash, Check } from "lucide-react";
+import {
+  motion,
+  AnimatePresence,
+  Reorder,
+  useDragControls,
+} from "framer-motion";
+import {
+  CalendarDays,
+  Plus,
+  GripVertical,
+  Check,
+  ChevronRight,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { ScreenHeader } from "@/components/innerly/screen-header";
-import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
+import {
+  HORIZONS,
+  GOAL_COLORS,
+  goalColor,
+  emptyHorizons,
+  type Goal,
+  type Horizon,
+} from "@/lib/types";
+import { useApp } from "@/state/app-context";
 import { useGoals, useTodayTasks, uid } from "@/state/use-data";
-import { ACCENTS } from "@/lib/types";
-import { gradient } from "@/lib/content";
+import { GoalThread } from "./goal-thread";
+import { CalendarModal } from "./calendar-modal";
 
-const c = copy.dailyPlan;
+const NEAREST: Horizon[] = ["today", "thisWeek", "oneMonth", "threeMonths", "sixMonths", "year"];
+
+function preview(goal: Goal): string | undefined {
+  for (const h of NEAREST) {
+    const found = goal.horizons[h].find((s) => s.title.trim());
+    if (found) return found.title;
+  }
+  return goal.description;
+}
 
 export function DailyPlan() {
-  const [tasks, setTasks] = useTodayTasks();
   const [goals, setGoals] = useGoals();
-  const [taskInput, setTaskInput] = useState("");
-  const [goalInput, setGoalInput] = useState("");
+  const [tasks, setTasks] = useTodayTasks();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [adhoc, setAdhoc] = useState("");
 
-  const addTask = (title: string, goalId?: string) => {
-    const t = title.trim();
-    if (!t) return;
-    setTasks((prev) => [...prev, { id: uid(), title: t, done: false, goalId }]);
-  };
+  const ordered = [...goals].sort((a, b) => a.order - b.order);
+  const selected = goals.find((g) => g.id === selectedId) ?? null;
 
-  const toggleTask = (id: string) =>
-    setTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
-    );
-  const removeTask = (id: string) =>
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+  const updateGoal = (g: Goal) =>
+    setGoals((prev) => prev.map((x) => (x.id === g.id ? g : x)));
 
   const addGoal = () => {
-    const title = goalInput.trim();
-    if (!title) return;
-    setGoals((prev) => [
-      ...prev,
-      {
-        id: uid(),
-        title,
-        color: ACCENTS[prev.length % ACCENTS.length][0],
-        createdAt: new Date().toISOString(),
-        steps: [],
-      },
-    ]);
-    setGoalInput("");
+    const color = GOAL_COLORS[goals.length % GOAL_COLORS.length].key;
+    const goal: Goal = {
+      id: uid(),
+      title: "",
+      color,
+      createdAt: new Date().toISOString(),
+      order: goals.length,
+      horizons: emptyHorizons(),
+    };
+    setGoals((prev) => [...prev, goal]);
+    setSelectedId(goal.id);
   };
 
-  const doneCount = tasks.filter((t) => t.done).length;
+  const deleteGoal = (id: string) => {
+    setGoals((prev) => prev.filter((g) => g.id !== id));
+    setSelectedId(null);
+  };
+
+  const toggleSub = (goalId: string, horizon: Horizon, subId: string) =>
+    setGoals((prev) =>
+      prev.map((g) =>
+        g.id === goalId
+          ? {
+              ...g,
+              horizons: {
+                ...g.horizons,
+                [horizon]: g.horizons[horizon].map((s) =>
+                  s.id === subId ? { ...s, done: !s.done } : s
+                ),
+              },
+            }
+          : g
+      )
+    );
+
+  const reorderGoals = (next: Goal[]) =>
+    setGoals(next.map((g, i) => ({ ...g, order: i })));
+
+  // Today aggregate: every goal's `today` sub-goals + ad-hoc tasks.
+  const goalToday = goals.flatMap((g) =>
+    g.horizons.today
+      .filter((s) => s.title.trim())
+      .map((s) => ({ kind: "goal" as const, goal: g, sub: s }))
+  );
+  const todayTotal = goalToday.length + tasks.length;
+  const todayDone =
+    goalToday.filter((t) => t.sub.done).length + tasks.filter((t) => t.done).length;
+
+  const addAdhoc = () => {
+    const t = adhoc.trim();
+    if (!t) return;
+    setTasks((prev) => [...prev, { id: uid(), title: t, done: false }]);
+    setAdhoc("");
+  };
+
+  const dateLabel = new Date().toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
   return (
     <div>
-      <ScreenHeader breadcrumb={c.breadcrumb} title={c.title} />
-
-      {/* Just for today */}
-      <Card className="p-6 sm:p-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-heading">Just for today</h2>
-          {tasks.length > 0 && (
-            <span className="text-sm text-muted-foreground">
-              {doneCount} of {tasks.length} done
-            </span>
-          )}
-        </div>
-
-        <form
-          className="mt-4 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            addTask(taskInput);
-            setTaskInput("");
-          }}
-        >
-          <input
-            value={taskInput}
-            onChange={(e) => setTaskInput(e.target.value)}
-            placeholder="One small step for today…"
-            className="flex-1 rounded-2xl border border-input bg-card px-4 py-3 text-[15px] outline-none focus:border-ring"
-          />
-          <Button type="submit" size="icon" aria-label="Add task">
-            <Plus className="h-5 w-5" />
-          </Button>
-        </form>
-
-        {tasks.length === 0 ? (
-          <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
-            {copy.dashboard.todayEmpty}
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            Innerly · Daily Plan
           </p>
-        ) : (
-          <ul className="mt-5 space-y-2">
-            {tasks.map((t) => (
-              <li
-                key={t.id}
-                className="group flex items-center gap-3 rounded-2xl px-2 py-1.5 hover:bg-accent"
-              >
-                <button
-                  onClick={() => toggleTask(t.id)}
-                  className={cn(
-                    "grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors",
-                    t.done
-                      ? "border-foreground bg-foreground text-background"
-                      : "border-border"
-                  )}
-                >
-                  {t.done && <Check className="h-3 w-3" />}
-                </button>
-                <span
-                  className={cn(
-                    "flex-1 text-[15px]",
-                    t.done && "text-muted-foreground line-through"
-                  )}
-                >
-                  {t.title}
-                </span>
-                <button
-                  onClick={() => removeTask(t.id)}
-                  aria-label="Delete"
-                  className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
-                >
-                  <Trash className="h-4 w-4" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      {/* Beyond today — goals */}
-      <div className="mt-6">
-        <h2 className="mb-3 px-1 text-lg font-semibold text-heading">Beyond today</h2>
-
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            addGoal();
-          }}
-        >
-          <input
-            value={goalInput}
-            onChange={(e) => setGoalInput(e.target.value)}
-            placeholder="A goal you're working toward…"
-            className="flex-1 rounded-2xl border border-input bg-card px-4 py-3 text-[15px] outline-none focus:border-ring"
-          />
-          <Button type="submit" size="icon" aria-label="Add goal">
-            <Plus className="h-5 w-5" />
-          </Button>
-        </form>
-
-        <div className="mt-4 space-y-4">
-          {goals.map((g) => (
-            <GoalCard
-              key={g.id}
-              goal={g}
-              onAddStepToToday={(title) => addTask(title, g.id)}
-              onUpdate={(updated) =>
-                setGoals((prev) =>
-                  prev.map((x) => (x.id === g.id ? updated : x))
-                )
-              }
-              onDelete={() =>
-                setGoals((prev) => prev.filter((x) => x.id !== g.id))
-              }
-            />
-          ))}
+          <h1 className="mt-3 text-[2.5rem] font-bold leading-[1.05] tracking-tight text-heading">
+            Daily Plan
+          </h1>
+          <p className="mt-3 inline-flex items-center gap-2 text-[15px] text-muted-foreground">
+            <CalendarDays className="h-4 w-4" /> {dateLabel}
+          </p>
         </div>
+        <button
+          onClick={() => setShowCalendar(true)}
+          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+        >
+          <CalendarDays className="h-4 w-4" /> Calendar
+        </button>
       </div>
+
+      {selected ? (
+        <div className="mt-10">
+          <GoalThread
+            goal={selected}
+            onBack={() => setSelectedId(null)}
+            onUpdate={updateGoal}
+            onDelete={() => deleteGoal(selected.id)}
+          />
+        </div>
+      ) : (
+        <div className="mt-10 space-y-10">
+          {/* Your goals */}
+          <section>
+            <div className="mb-4 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Your goals
+              </p>
+              <button
+                onClick={addGoal}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <Plus className="h-4 w-4" /> Add goal
+              </button>
+            </div>
+
+            {ordered.length === 0 ? (
+              <Card className="p-10 text-center">
+                <p className="text-[15px] leading-relaxed text-muted-foreground">
+                  No goals yet. Add one and break it down from a year to today.
+                </p>
+              </Card>
+            ) : (
+              <Reorder.Group
+                axis="y"
+                values={ordered}
+                onReorder={(next) => reorderGoals(next as Goal[])}
+                className="grid gap-4 sm:grid-cols-2"
+              >
+                <AnimatePresence initial={false}>
+                  {ordered.map((goal) => (
+                    <GoalCard
+                      key={goal.id}
+                      goal={goal}
+                      onOpen={() => setSelectedId(goal.id)}
+                    />
+                  ))}
+                </AnimatePresence>
+              </Reorder.Group>
+            )}
+          </section>
+
+          {/* Today aggregate */}
+          <section>
+            <Card className="p-6 sm:p-8">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-heading">Today</h2>
+                  <p className="mt-1 text-[15px] leading-relaxed text-muted-foreground">
+                    Every action from every goal, plus anything just for today.
+                  </p>
+                </div>
+                <span className="shrink-0 text-sm tabular-nums text-muted-foreground">
+                  {todayDone} of {todayTotal}
+                </span>
+              </div>
+
+              {/* progress bar */}
+              <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                <motion.div
+                  className="h-full rounded-full bg-foreground"
+                  initial={false}
+                  animate={{
+                    width: todayTotal ? `${(todayDone / todayTotal) * 100}%` : "0%",
+                  }}
+                  transition={{ type: "spring", stiffness: 200, damping: 30 }}
+                />
+              </div>
+
+              <div className="mt-5 space-y-1">
+                <AnimatePresence initial={false}>
+                  {goalToday.map(({ goal, sub }) => {
+                    const color = goalColor(goal.color);
+                    return (
+                      <motion.div
+                        key={sub.id}
+                        layout
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="flex items-center gap-3 rounded-2xl px-2 py-2"
+                      >
+                        <button
+                          onClick={() => toggleSub(goal.id, "today", sub.id)}
+                          className="grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors"
+                          style={{
+                            borderColor: color.dot,
+                            backgroundColor: sub.done ? color.dot : "transparent",
+                          }}
+                          aria-label="Toggle"
+                        >
+                          {sub.done && <Check className="h-3 w-3 text-white" />}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={cn(
+                              "text-[15px] leading-snug",
+                              sub.done && "text-muted-foreground line-through"
+                            )}
+                          >
+                            {sub.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {goal.title || "Untitled goal"}
+                          </p>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+
+                  {tasks.map((t) => (
+                    <motion.div
+                      key={t.id}
+                      layout
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-center gap-3 rounded-2xl px-2 py-2"
+                    >
+                      <button
+                        onClick={() =>
+                          setTasks((prev) =>
+                            prev.map((x) =>
+                              x.id === t.id ? { ...x, done: !x.done } : x
+                            )
+                          )
+                        }
+                        className={cn(
+                          "grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors",
+                          t.done
+                            ? "border-foreground bg-foreground text-background"
+                            : "border-border"
+                        )}
+                        aria-label="Toggle"
+                      >
+                        {t.done && <Check className="h-3 w-3" />}
+                      </button>
+                      <p
+                        className={cn(
+                          "flex-1 text-[15px]",
+                          t.done && "text-muted-foreground line-through"
+                        )}
+                      >
+                        {t.title}
+                      </p>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+
+                {todayTotal === 0 && (
+                  <p className="px-2 py-3 text-[15px] leading-relaxed text-muted-foreground">
+                    Open a goal and add a Today action — or add one just for today
+                    below.
+                  </p>
+                )}
+              </div>
+
+              <form
+                className="mt-4 flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  addAdhoc();
+                }}
+              >
+                <input
+                  value={adhoc}
+                  onChange={(e) => setAdhoc(e.target.value)}
+                  placeholder="Add something just for today…"
+                  className="flex-1 rounded-2xl border border-input bg-card px-4 py-3 text-[15px] outline-none focus:border-ring"
+                />
+                <button
+                  type="submit"
+                  aria-label="Add"
+                  className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-opacity hover:opacity-90"
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+              </form>
+            </Card>
+          </section>
+        </div>
+      )}
+
+      <AnimatePresence>
+        {showCalendar && (
+          <CalendarModal
+            goals={goals}
+            onToggleSub={toggleSub}
+            onClose={() => setShowCalendar(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function GoalCard({
-  goal,
-  onAddStepToToday,
-  onUpdate,
-  onDelete,
-}: {
-  goal: import("@/lib/types").Goal;
-  onAddStepToToday: (title: string) => void;
-  onUpdate: (g: import("@/lib/types").Goal) => void;
-  onDelete: () => void;
-}) {
-  const [stepInput, setStepInput] = useState("");
-  const accent = ACCENTS.find((a) => a[0] === goal.color) ?? ACCENTS[0];
-
-  const addStep = () => {
-    const title = stepInput.trim();
-    if (!title) return;
-    onUpdate({
-      ...goal,
-      steps: [...goal.steps, { id: uid(), title, done: false }],
-    });
-    onAddStepToToday(title);
-    setStepInput("");
-  };
+function GoalCard({ goal, onOpen }: { goal: Goal; onOpen: () => void }) {
+  const { night } = useApp();
+  const controls = useDragControls();
+  const color = goalColor(goal.color);
+  const sub = preview(goal);
+  const totalSubs = HORIZONS.reduce(
+    (n, h) => n + goal.horizons[h.key].filter((s) => s.title.trim()).length,
+    0
+  );
+  const doneSubs = HORIZONS.reduce(
+    (n, h) => n + goal.horizons[h.key].filter((s) => s.title.trim() && s.done).length,
+    0
+  );
 
   return (
-    <Card className="overflow-hidden">
-      <div className="h-2 w-full" style={{ backgroundImage: gradient(accent) }} />
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-3">
-          <h3 className="text-[17px] font-semibold text-heading">{goal.title}</h3>
+    <Reorder.Item
+      value={goal}
+      dragListener={false}
+      dragControls={controls}
+      layout
+      initial={{ opacity: 0, scale: 0.97 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ type: "spring", stiffness: 500, damping: 40 }}
+      whileDrag={{ scale: 1.03, boxShadow: "0 12px 40px rgba(0,0,0,0.12)" }}
+      className="relative"
+      style={{ borderRadius: "1.5rem" }}
+    >
+      <Card
+        onClick={onOpen}
+        className="group h-full cursor-pointer p-5 transition-colors hover:bg-accent"
+        style={{ backgroundColor: night ? color.softDark : color.soft }}
+      >
+        <div className="flex items-center justify-between">
+          <span
+            className="h-3.5 w-3.5 rounded-full"
+            style={{ backgroundColor: color.dot }}
+          />
           <button
-            onClick={onDelete}
-            aria-label="Delete goal"
-            className="text-muted-foreground hover:text-destructive"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              controls.start(e);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Drag to reorder"
+            className="cursor-grab touch-none text-foreground/30 transition-opacity hover:text-foreground/60 active:cursor-grabbing"
           >
-            <Trash className="h-4 w-4" />
+            <GripVertical className="h-4 w-4" />
           </button>
         </div>
-
-        {goal.steps.length > 0 && (
-          <ul className="mt-3 space-y-1.5">
-            {goal.steps.map((s) => (
-              <li key={s.id} className="text-[15px] text-muted-foreground">
-                · {s.title}
-              </li>
-            ))}
-          </ul>
+        <h3 className="mt-4 text-lg font-semibold text-heading">
+          {goal.title || "Untitled goal"}
+        </h3>
+        {sub && (
+          <p className="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-foreground/70">
+            {sub}
+          </p>
         )}
-
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            addStep();
-          }}
-        >
-          <input
-            value={stepInput}
-            onChange={(e) => setStepInput(e.target.value)}
-            placeholder="Break it into a step for today…"
-            className="flex-1 rounded-xl border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring"
-          />
-          <Button type="submit" size="sm" variant="secondary">
-            Add to today
-          </Button>
-        </form>
-      </div>
-    </Card>
+        <div className="mt-4 flex items-center justify-between">
+          <span className="text-xs font-medium text-foreground/60">
+            {totalSubs > 0 ? `${doneSubs}/${totalSubs} done` : "Tap to plan"}
+          </span>
+          <ChevronRight className="h-4 w-4 text-foreground/40 transition-transform group-hover:translate-x-0.5" />
+        </div>
+      </Card>
+    </Reorder.Item>
   );
 }

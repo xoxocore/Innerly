@@ -52,8 +52,10 @@ const result = await build({
   loader: { ".tsx": "tsx", ".ts": "ts" },
   target: ["es2020"],
 });
-const js = result.outputFiles[0].text;
-const jsB64 = Buffer.from(js, "utf8").toString("base64");
+// Inline as a normal <script> (NOT a data: URI). A large base64 data: URL can
+// hit the browser's script-source length limit and silently fail when opened
+// via file:// (double-click). Escaping `</script` keeps the inline tag valid.
+const jsInline = result.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 
 // 3) Compose one self-contained HTML.
 const html = `<!doctype html>
@@ -66,9 +68,19 @@ const html = `<!doctype html>
 </head>
 <body class="min-h-full flex flex-col">
 <div id="root"></div>
-<script src="data:text/javascript;base64,${jsB64}"></script>
+<script>${jsInline}</script>
 </body>
 </html>`;
 
 await writeFile(dest, html, "utf8");
+
+// Also drop a fresh, clearly-named copy in Downloads so it's easy to find/open.
+try {
+  const downloads = join(process.env.USERPROFILE || process.env.HOME || ".", "Downloads", "Innerly.html");
+  await writeFile(downloads, html, "utf8");
+  console.log(`Wrote ${downloads}`);
+} catch (e) {
+  console.warn("Could not write Downloads copy:", e?.message);
+}
+
 console.log(`Wrote ${dest} (${(html.length / 1024).toFixed(0)} KB)`);

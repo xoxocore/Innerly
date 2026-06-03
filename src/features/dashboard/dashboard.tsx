@@ -8,17 +8,19 @@ import {
   Image as ImageIcon,
   ChevronRight,
   ArrowRight,
+  Check,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MultiAdd } from "@/components/innerly/multi-add";
 import { copy, fill } from "@/lib/copy";
 import { BLOG_POSTS, gradient } from "@/lib/content";
+import { goalColor } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/app-context";
 import {
   useReflections,
-  useTodayTasks,
+  useTodayPlan,
   useRemindersChecked,
 } from "@/state/use-data";
 
@@ -54,7 +56,7 @@ const FEATURES = [
 export function Dashboard() {
   const { profile, navigate } = useApp();
   const [reflections] = useReflections();
-  const [tasks] = useTodayTasks();
+  const today = useTodayPlan();
   const [checked, setChecked] = useRemindersChecked();
 
   const name = profile?.firstName ?? "friend";
@@ -94,42 +96,78 @@ export function Dashboard() {
         ))}
       </div>
 
-      {/* Today's plan */}
+      {/* Today's plan — synced with Daily Plan's Today list */}
       <Card className="p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-heading">{c.todayTitle}</h2>
-          <button
-            onClick={() => navigate("daily-plan")}
-            className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            {c.todayOpenLink}
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-3">
+            {today.total > 0 && (
+              <span className="text-sm tabular-nums text-muted-foreground">
+                {today.done} of {today.total}
+              </span>
+            )}
+            <button
+              onClick={() => navigate("daily-plan")}
+              className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              {c.todayOpenLink}
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-        {tasks.length === 0 ? (
+
+        {today.total === 0 ? (
           <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
             {c.todayEmpty}
           </p>
         ) : (
-          <ul className="mt-4 space-y-2">
-            {tasks.slice(0, 4).map((t) => (
-              <li key={t.id} className="flex items-center gap-3 text-[15px]">
-                <span
-                  className={cn(
-                    "h-4 w-4 rounded-full border",
-                    t.done ? "border-foreground bg-foreground" : "border-border"
-                  )}
-                />
-                <span className={cn(t.done && "text-muted-foreground line-through")}>
-                  {t.title}
-                </span>
-              </li>
-            ))}
-            {tasks.length > 4 && (
-              <li className="pt-1 text-sm text-muted-foreground">
-                {tasks.length - 4} {c.todayMore}
-              </li>
-            )}
+          <ul className="mt-4 space-y-1">
+            {today.items.map((item) => {
+              const accent = item.color ? goalColor(item.color) : null;
+              return (
+                <li key={`${item.source}-${item.id}`}>
+                  <button
+                    onClick={() => today.toggle(item)}
+                    className="flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-left transition-colors hover:bg-accent"
+                  >
+                    <span
+                      className={cn(
+                        "grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors",
+                        !accent && item.done && "border-foreground bg-foreground text-background",
+                        !accent && !item.done && "border-border"
+                      )}
+                      style={
+                        accent
+                          ? {
+                              borderColor: accent.dot,
+                              backgroundColor: item.done ? accent.dot : "transparent",
+                            }
+                          : undefined
+                      }
+                    >
+                      {item.done && (
+                        <Check className={cn("h-3 w-3", accent && "text-white")} />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          "block text-[15px] leading-snug",
+                          item.done && "text-muted-foreground line-through"
+                        )}
+                      >
+                        {item.title}
+                      </span>
+                      {item.source === "goal" && (
+                        <span className="block text-xs text-muted-foreground">
+                          {item.goalTitle || "Untitled goal"}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </Card>
