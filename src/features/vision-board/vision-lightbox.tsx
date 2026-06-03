@@ -75,7 +75,7 @@ export function VisionLightbox({
 
           {/* text */}
           <div className="flex-1 overflow-y-auto p-6">
-            <h2 className="text-xl font-bold leading-snug tracking-tight text-heading">
+            <h2 className="text-xl font-normal leading-snug tracking-tight text-heading">
               {item.title}
             </h2>
             {item.description && (

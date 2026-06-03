@@ -64,7 +64,7 @@ export function Reflect() {
       </div>
 
       <Card className="p-6 sm:p-8">
-        <h2 className="text-xl font-semibold text-heading">{cur.title}</h2>
+        <h2 className="text-xl font-medium text-heading">{cur.title}</h2>
         <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
           {cur.hint}
         </p>
@@ -167,7 +167,7 @@ function Completion({
 }) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
-      <h2 className="max-w-md text-3xl font-bold leading-tight tracking-tight text-heading">
+      <h2 className="max-w-md text-3xl font-normal leading-tight tracking-tight text-heading">
         {c.completionTitle}
       </h2>
       <div className="mt-8 flex w-full max-w-xs flex-col gap-3">

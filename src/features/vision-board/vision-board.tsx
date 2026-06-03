@@ -159,9 +159,9 @@ export function VisionBoard() {
                 value={active.year}
                 onChange={(e) => patchYear(active.id, { year: e.target.value })}
                 aria-label="Edit year"
-                className="w-40 bg-transparent text-[2rem] font-bold leading-tight tracking-tight text-heading outline-none"
+                className="w-40 bg-transparent text-[2rem] font-normal leading-tight tracking-tight text-heading outline-none"
               />
-              <p className="mt-0.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="mt-0.5 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {visions} {visions === 1 ? "Vision" : "Visions"}
               </p>
             </div>
@@ -251,7 +251,7 @@ export function VisionBoard() {
                       />
                     )}
                     <div className="p-5">
-                      <h3 className="text-[17px] font-semibold leading-snug text-heading">
+                      <h3 className="text-[17px] font-medium leading-snug text-heading">
                         {item.title}
                       </h3>
                       {item.description && (

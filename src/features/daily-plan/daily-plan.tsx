@@ -123,7 +123,7 @@ export function DailyPlan() {
           <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
             Innerly · Daily Plan
           </p>
-          <h1 className="mt-2.5 text-[1.6rem] font-semibold leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
+          <h1 className="mt-2.5 text-[1.6rem] font-normal leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
             Daily Plan
           </h1>
           <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -152,7 +152,7 @@ export function DailyPlan() {
           {/* Your goals */}
           <section>
             <div className="mb-4 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 Your goals
               </p>
               <button
@@ -194,7 +194,7 @@ export function DailyPlan() {
             <Card className="p-6 sm:p-8">
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-semibold text-heading">Today</h2>
+                  <h2 className="text-xl font-medium text-heading">Today</h2>
                   <p className="mt-1 text-[15px] leading-relaxed text-muted-foreground">
                     Every action from every goal, plus anything just for today.
                   </p>
@@ -393,7 +393,7 @@ function GoalCard({ goal, onOpen }: { goal: Goal; onOpen: () => void }) {
             <GripVertical className="h-4 w-4" />
           </button>
         </div>
-        <h3 className="mt-4 text-lg font-semibold text-heading">
+        <h3 className="mt-4 text-lg font-medium text-heading">
           {goal.title || "Untitled goal"}
         </h3>
         {sub && (

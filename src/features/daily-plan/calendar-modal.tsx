@@ -149,7 +149,7 @@ export function CalendarModal({
                     className="h-2.5 w-2.5 rounded-full"
                     style={{ backgroundColor: color.dot }}
                   />
-                  <p className="text-sm font-semibold text-heading">
+                  <p className="text-sm font-medium text-heading">
                     {group.goalTitle || "Untitled goal"}
                   </p>
                 </div>
@@ -159,7 +159,7 @@ export function CalendarModal({
                   {group.horizons.map(({ horizon, label, items: hItems }) => (
                     <div key={horizon}>
                       <p
-                        className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                        className="mb-1.5 text-[11px] font-medium uppercase tracking-[0.16em]"
                         style={{ color: color.dot }}
                       >
                         {label}
@@ -236,7 +236,7 @@ export function CalendarModal({
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
-          <span className="text-2xl font-bold tracking-tight text-heading">
+          <span className="text-2xl font-normal tracking-tight text-heading">
             {year}
           </span>
           <button
@@ -344,8 +344,8 @@ export function CalendarModal({
               }}
               className={cn(
                 "relative grid aspect-square place-items-center rounded-2xl text-sm transition-colors",
-                isToday && "bg-foreground font-semibold text-background",
-                !isToday && (isSelected || isFocusDay) && "font-semibold",
+                isToday && "bg-foreground font-medium text-background",
+                !isToday && (isSelected || isFocusDay) && "font-medium",
                 !isToday && !isSelected && !isFocusDay && "text-foreground hover:bg-accent"
               )}
               style={
@@ -397,7 +397,7 @@ export function CalendarModal({
           {/* header */}
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-heading">
+              <h2 className="flex items-center gap-2 text-2xl font-normal tracking-tight text-heading">
                 <CalendarIcon className="h-6 w-6" /> Calendar
               </h2>
               <p className="mt-1 text-[15px] text-muted-foreground">

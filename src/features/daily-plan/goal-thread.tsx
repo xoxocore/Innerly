@@ -72,7 +72,7 @@ export function GoalThread({
             value={goal.title}
             onChange={(e) => onUpdate({ ...goal, title: e.target.value })}
             placeholder="Name your goal"
-            className="w-full bg-transparent text-[2rem] font-bold leading-tight tracking-tight text-heading outline-none placeholder:text-muted-foreground/50"
+            className="w-full bg-transparent text-[2rem] font-normal leading-tight tracking-tight text-heading outline-none placeholder:text-muted-foreground/50"
           />
         </div>
         <button
@@ -108,7 +108,7 @@ export function GoalThread({
                 className="rounded-3xl border border-border bg-card p-5"
               >
                 <p
-                  className="text-xs font-semibold uppercase tracking-[0.18em]"
+                  className="text-xs font-medium uppercase tracking-[0.18em]"
                   style={{ color: color.dot }}
                 >
                   {label}

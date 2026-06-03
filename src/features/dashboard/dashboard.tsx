@@ -36,22 +36,6 @@ const FEATURES = [
   { view: "vision-board" as const, icon: ImageIcon, title: c.featureVisionTitle, desc: c.featureVisionDesc },
 ];
 
-// Soft, breathing powdery-turquoise glow (ambient motion behind the hero).
-function TurquoiseGlow({ className }: { className?: string }) {
-  return (
-    <motion.div
-      aria-hidden
-      className={cn("pointer-events-none absolute -z-10 rounded-full blur-3xl", className)}
-      style={{
-        background:
-          "radial-gradient(circle, rgba(45,212,191,0.30), rgba(94,234,212,0.12) 45%, rgba(45,212,191,0) 72%)",
-      }}
-      animate={{ opacity: [0.3, 0.55, 0.3], scale: [1, 1.1, 1] }}
-      transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-    />
-  );
-}
-
 export function Dashboard() {
   const { profile, navigate } = useApp();
   const [reflections] = useReflections();
@@ -73,9 +57,7 @@ export function Dashboard() {
   const latestPost = BLOG_POSTS[0];
 
   return (
-    <div className="relative isolate space-y-7">
-      <TurquoiseGlow className="-top-20 left-1/2 h-52 w-[30rem] -translate-x-1/2" />
-
+    <div className="space-y-7">
       {/* Hero */}
       <header>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -89,20 +71,20 @@ export function Dashboard() {
         </p>
       </header>
 
-      {/* Feature cards — one compact row */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      {/* Feature cards — separated, with a soft warm "sunrise" glow */}
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         {FEATURES.map(({ view, icon: Icon, title, desc }) => (
           <motion.button
             key={view}
             onClick={() => navigate(view)}
             whileHover={{ y: -3 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            className="group rounded-2xl border border-border bg-card p-4 text-left transition-shadow hover:shadow-[0_10px_30px_-12px_rgba(45,212,191,0.45)]"
+            transition={{ type: "spring", stiffness: 300, damping: 26 }}
+            className="group rounded-2xl border border-border/70 bg-card p-4 text-left shadow-[0_2px_10px_-6px_rgba(15,23,42,0.10),0_10px_28px_-18px_rgba(251,146,60,0.30)] transition-shadow duration-300 hover:shadow-[0_6px_18px_-8px_rgba(15,23,42,0.10),0_20px_48px_-16px_rgba(251,146,60,0.55)]"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-foreground transition-colors group-hover:bg-[#ccfbf1] group-hover:text-[#0f766e]">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary text-foreground transition-colors group-hover:bg-[#fdebd9] group-hover:text-[#b45309]">
               <Icon className="h-[17px] w-[17px]" />
             </span>
-            <h3 className="mt-3 text-sm font-semibold leading-snug text-heading">
+            <h3 className="mt-3 text-sm font-medium leading-snug text-heading">
               {title}
             </h3>
             <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
@@ -121,7 +103,7 @@ export function Dashboard() {
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {c.remindersEyebrow}
           </p>
-          <h2 className="mt-2 text-lg font-semibold text-heading">{c.remindersTitle}</h2>
+          <h2 className="mt-2 text-lg font-medium text-heading">{c.remindersTitle}</h2>
           <p className="mt-1.5 text-[15px] leading-relaxed text-muted-foreground">
             {c.remindersDesc}
           </p>
@@ -178,7 +160,7 @@ export function Dashboard() {
               <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {c.blogEyebrow}
               </p>
-              <h3 className="mt-2 text-lg font-semibold text-heading">{latestPost.title}</h3>
+              <h3 className="mt-2 text-lg font-medium text-heading">{latestPost.title}</h3>
               <p className="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
                 {latestPost.excerpt}
               </p>
@@ -216,7 +198,7 @@ function TodoList({
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-heading">
+          <h2 className="text-lg font-medium tracking-tight text-heading">
             {c.todayTitle}
           </h2>
           <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -356,7 +338,7 @@ function NightCheckIn() {
       <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
         {c.nightEyebrow}
       </p>
-      <h2 className="mt-2 text-lg font-semibold text-heading">{c.nightTitle}</h2>
+      <h2 className="mt-2 text-lg font-medium text-heading">{c.nightTitle}</h2>
 
       {phase === "ask" && (
         <>

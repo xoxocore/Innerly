@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.error) {
       return (
         <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center">
-          <h2 className="text-2xl font-bold tracking-tight text-heading">
+          <h2 className="text-2xl font-normal tracking-tight text-heading">
             This screen hit a snag.
           </h2>
           <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted-foreground">

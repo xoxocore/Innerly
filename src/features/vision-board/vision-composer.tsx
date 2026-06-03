@@ -114,7 +114,7 @@ export function VisionComposer({
             className="w-full rounded-2xl border border-input bg-card px-4 py-3 text-[17px] font-medium outline-none focus:border-ring"
           />
 
-          <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="mb-2 mt-4 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Description <span className="font-normal lowercase tracking-normal">(optional)</span>
           </p>
           <RichText

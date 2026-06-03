@@ -29,7 +29,7 @@ export function Tutorials() {
         <p className="mt-6 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
           <Clock className="h-3.5 w-3.5" /> {tut.duration}
         </p>
-        <h1 className="mt-3 text-[2rem] font-bold leading-tight tracking-tight text-heading">
+        <h1 className="mt-3 text-[2rem] font-normal leading-tight tracking-tight text-heading">
           {tut.title}
         </h1>
         <div
@@ -56,7 +56,7 @@ export function Tutorials() {
                 style={{ backgroundImage: gradient(t.gradient) }}
               />
               <div className="min-w-0">
-                <h3 className="text-[17px] font-semibold text-heading">{t.title}</h3>
+                <h3 className="text-[17px] font-medium text-heading">{t.title}</h3>
                 <p className="mt-1 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
                   {t.excerpt}
                 </p>

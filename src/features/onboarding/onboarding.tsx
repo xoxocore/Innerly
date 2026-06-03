@@ -47,7 +47,7 @@ export function Onboarding() {
             <div className="flex justify-center pb-10">
               <RippleMark className="aspect-square w-40" />
             </div>
-            <h1 className="text-[2.25rem] font-bold leading-[1.1] tracking-tight text-heading">
+            <h1 className="text-[2.25rem] font-normal leading-[1.1] tracking-tight text-heading">
               What should we call you?
             </h1>
             <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
@@ -76,7 +76,7 @@ export function Onboarding() {
           <>
             <div className="flex flex-1 flex-col">
               <div className="pt-10">
-                <h1 className="max-w-md text-[2.75rem] font-bold leading-[1.1] tracking-tight text-heading">
+                <h1 className="max-w-md text-[2.75rem] font-normal leading-[1.1] tracking-tight text-heading">
                   {slide.title}
                 </h1>
                 <p className="mt-5 max-w-sm text-lg leading-relaxed text-muted-foreground">

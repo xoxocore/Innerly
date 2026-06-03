@@ -12,7 +12,7 @@ export function ScreenHeader({
       <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
         {breadcrumb}
       </p>
-      <h1 className="mt-2.5 text-[1.6rem] font-semibold leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
+      <h1 className="mt-2.5 text-[1.6rem] font-normal leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
         {title}
       </h1>
       {subtitle && (

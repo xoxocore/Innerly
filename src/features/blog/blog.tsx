@@ -39,7 +39,7 @@ export function Blog() {
         <p className="mt-6 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
           {post.category} · {formatDate(post.date)}
         </p>
-        <h1 className="mt-3 text-[2rem] font-bold leading-tight tracking-tight text-heading">
+        <h1 className="mt-3 text-[2rem] font-normal leading-tight tracking-tight text-heading">
           {post.title}
         </h1>
         <div
@@ -69,7 +69,7 @@ export function Blog() {
                 <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
                   {p.category}
                 </p>
-                <h3 className="mt-2 text-lg font-semibold leading-snug text-heading">
+                <h3 className="mt-2 text-lg font-medium leading-snug text-heading">
                   {p.title}
                 </h3>
                 <p className="mt-2 line-clamp-3 text-[15px] leading-relaxed text-muted-foreground">

@@ -22,7 +22,7 @@ function Section({
 }) {
   return (
     <Card className="p-6 sm:p-8">
-      <h2 className="text-xl font-semibold text-heading">{title}</h2>
+      <h2 className="text-xl font-medium text-heading">{title}</h2>
       <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{desc}</p>
       <div className="mt-5">{children}</div>
     </Card>
@@ -104,7 +104,7 @@ export function Manifestation() {
       {saved && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-6">
           <Card className="w-full max-w-md p-7">
-            <h3 className="text-xl font-semibold text-heading">{c.savedTitle}</h3>
+            <h3 className="text-xl font-medium text-heading">{c.savedTitle}</h3>
             <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
               {c.savedText}
             </p>

@@ -36,7 +36,7 @@ function Brand() {
     <div className="flex items-center gap-3">
       <RippleMark className="h-10 w-10" />
       <div className="leading-tight">
-        <p className="text-lg font-semibold tracking-tight text-heading">
+        <p className="text-lg font-medium tracking-tight text-heading">
           {copy.brand.appName}
         </p>
         <p className="text-xs text-muted-foreground">{copy.brand.tagline}</p>
@@ -83,7 +83,7 @@ function StreakNightRow() {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary text-sm font-semibold tabular-nums text-foreground">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary text-sm font-medium tabular-nums text-foreground">
           {streak}
         </span>
         <span className="text-sm text-muted-foreground">{label}</span>

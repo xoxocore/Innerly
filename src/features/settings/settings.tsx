@@ -64,7 +64,7 @@ export function Settings() {
       <div className="space-y-6">
         {/* Profile */}
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-heading">Profile</h2>
+          <h2 className="text-lg font-medium text-heading">Profile</h2>
           <label className="mt-4 block text-sm font-medium text-muted-foreground">
             First name
           </label>
@@ -87,7 +87,7 @@ export function Settings() {
 
         {/* Appearance */}
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-heading">Appearance</h2>
+          <h2 className="text-lg font-medium text-heading">Appearance</h2>
           <Toggle
             label="Night mode"
             desc="A darker, calmer palette for the evening."
@@ -98,7 +98,7 @@ export function Settings() {
 
         {/* Notifications */}
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-heading">
+          <h2 className="text-lg font-medium text-heading">
             {c.notificationsTitle}
           </h2>
           <div className="mt-2 divide-y divide-border">
@@ -125,7 +125,7 @@ export function Settings() {
 
         {/* Account */}
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-heading">Account</h2>
+          <h2 className="text-lg font-medium text-heading">Account</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             Signing out returns you to the welcome screen. Your data stays on this
             device.
