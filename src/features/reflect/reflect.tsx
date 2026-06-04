@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Heart } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Heart,
+  Bold,
+  Underline,
+  Highlighter,
+} from "lucide-react";
 import { MultiAdd } from "@/components/innerly/multi-add";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
-import { GOAL_COLORS } from "@/lib/types";
 import { useApp } from "@/state/app-context";
 import { useReflections, uid } from "@/state/use-data";
 import type { Reflection } from "@/lib/types";
@@ -16,6 +23,18 @@ const c = copy.reflect;
 // soft, calm ease (cubic-bezier)
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
+// Warm, calm accent palette — intentionally no corporate blue.
+const SOFT = [
+  { dot: "#f4a6c0", soft: "#fde4ee", softDark: "#3a2630" }, // rose
+  { dot: "#f6b89c", soft: "#fdeae0", softDark: "#3a2c24" }, // peach
+  { dot: "#cda9ec", soft: "#efe6fb", softDark: "#2e2740" }, // lavender
+  { dot: "#f3cd86", soft: "#fdf1d8", softDark: "#3a3120" }, // honey
+  { dot: "#a9dcc9", soft: "#e4f5ef", softDark: "#1f3a33" }, // sage
+];
+
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 function RosyGlow({ night, className }: { night: boolean; className?: string }) {
   return (
     <motion.div
@@ -24,7 +43,7 @@ function RosyGlow({ night, className }: { night: boolean; className?: string }) 
       style={{
         background: night
           ? "radial-gradient(circle, rgba(196,206,234,0.22), transparent 70%)"
-          : "radial-gradient(circle, rgba(255,201,220,0.50), rgba(255,224,234,0.20) 46%, transparent 72%)",
+          : "radial-gradient(circle, rgba(255,201,220,0.55), rgba(255,224,234,0.22) 46%, transparent 72%)",
       }}
       animate={{ opacity: [0.4, 0.7, 0.4], scale: [1, 1.08, 1] }}
       transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
@@ -32,7 +51,10 @@ function RosyGlow({ night, className }: { night: boolean; className?: string }) 
   );
 }
 
-// gentle writing surface, shared by the textareas
+// Liquid-glass writing card that lifts off the glassy background.
+const glassCard =
+  "relative overflow-hidden rounded-3xl bg-card/55 p-6 ring-1 ring-white/60 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.32),inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-2xl sm:p-8 dark:ring-white/10 dark:shadow-[0_24px_60px_-28px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]";
+
 const writeBox =
   "w-full resize-none rounded-2xl border border-border/60 bg-card/60 px-4 py-3 text-sm leading-relaxed text-foreground outline-none backdrop-blur-sm transition-colors placeholder:text-muted-foreground/60 focus:border-[#f4c4d6] focus:bg-card/80 dark:focus:border-[#3a2a30]";
 
@@ -44,10 +66,19 @@ export function Reflect() {
   const [done, setDone] = useState(false);
   const [moments, setMoments] = useState<string[]>([""]);
   const [whys, setWhys] = useState<Record<number, string>>({});
+  const [review, setReview] = useState("");
   const [differently, setDifferently] = useState("");
 
   const cleanMoments = moments.map((m) => m.trim()).filter(Boolean);
   const canContinue = cleanMoments.length > 0;
+
+  // The plain starting text for Pause & Review (the user then marks it up).
+  const reviewBase = cleanMoments
+    .map((m, i) => {
+      const why = whys[i]?.trim();
+      return `<p>${esc(m)}</p>` + (why ? `<p>${esc(why)}</p>` : "");
+    })
+    .join("");
 
   const save = () => {
     const reflection: Reflection = {
@@ -55,6 +86,7 @@ export function Reflect() {
       date: new Date().toISOString(),
       moments: cleanMoments.map((text, i) => ({ text, why: whys[i] ?? "" })),
       differently: differently.trim(),
+      review: (review || reviewBase) || undefined,
     };
     setReflections((prev) => [...prev, reflection]);
     setDone(true);
@@ -91,16 +123,10 @@ export function Reflect() {
       <div className="mb-5">
         <div className="flex gap-1.5">
           {steps.map((_, i) => (
-            <div
-              key={i}
-              className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10"
-            >
+            <div key={i} className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
               <motion.div
                 className="h-full rounded-full"
-                style={{
-                  background:
-                    "linear-gradient(90deg, #f7b8ce, var(--foreground))",
-                }}
+                style={{ background: "linear-gradient(90deg, #f7b8ce, var(--foreground))" }}
                 initial={false}
                 animate={{ width: i <= step ? "100%" : "0%" }}
                 transition={{ duration: 0.5, ease: EASE }}
@@ -114,11 +140,7 @@ export function Reflect() {
       </div>
 
       {/* Glass writing card */}
-      <motion.div
-        layout
-        transition={{ duration: 0.4, ease: EASE }}
-        className="relative overflow-hidden rounded-3xl border border-border/50 bg-card/45 p-6 shadow-[0_10px_40px_-20px_rgba(15,23,42,0.18)] backdrop-blur-2xl sm:p-8"
-      >
+      <motion.div layout transition={{ duration: 0.4, ease: EASE }} className={glassCard}>
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
@@ -128,9 +150,7 @@ export function Reflect() {
             transition={{ duration: 0.35, ease: EASE }}
           >
             <h2 className="text-[17px] leading-snug text-heading">{cur.title}</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-              {cur.hint}
-            </p>
+            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{cur.hint}</p>
 
             <div className="mt-6">
               {step === 0 && (
@@ -145,7 +165,7 @@ export function Reflect() {
               {step === 1 && (
                 <div className="space-y-5">
                   {cleanMoments.map((m, i) => {
-                    const dot = GOAL_COLORS[i % GOAL_COLORS.length].dot;
+                    const dot = SOFT[i % SOFT.length].dot;
                     return (
                       <div key={i}>
                         <p className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -157,9 +177,7 @@ export function Reflect() {
                         </p>
                         <textarea
                           value={whys[i] ?? ""}
-                          onChange={(e) =>
-                            setWhys((p) => ({ ...p, [i]: e.target.value }))
-                          }
+                          onChange={(e) => setWhys((p) => ({ ...p, [i]: e.target.value }))}
                           rows={3}
                           placeholder="Because…"
                           className={cn("mt-2", writeBox)}
@@ -175,28 +193,13 @@ export function Reflect() {
                   <p className="text-[13px] leading-relaxed text-muted-foreground">
                     {c.step3Intro}
                   </p>
-                  <div className="mt-5 space-y-3">
-                    {cleanMoments.map((m, i) => {
-                      const color = GOAL_COLORS[i % GOAL_COLORS.length];
-                      return (
-                        <motion.div
-                          key={i}
-                          initial={{ opacity: 0, y: 8 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.06, ease: EASE }}
-                          className="rounded-2xl border-l-2 px-4 py-3 text-sm leading-relaxed"
-                          style={{
-                            borderColor: color.dot,
-                            backgroundColor: night ? color.softDark : color.soft,
-                          }}
-                        >
-                          <p className="font-medium text-foreground">{m}</p>
-                          {whys[i]?.trim() && (
-                            <p className="mt-1 text-muted-foreground">{whys[i]}</p>
-                          )}
-                        </motion.div>
-                      );
-                    })}
+                  <div className="mt-5">
+                    <ReviewEditor
+                      key="review"
+                      initialHtml={review || reviewBase}
+                      onChange={setReview}
+                      night={night}
+                    />
                   </div>
                 </div>
               )}
@@ -257,6 +260,90 @@ export function Reflect() {
           )}
         </div>
       </motion.div>
+    </div>
+  );
+}
+
+// Pause & Review — re-read your own words and mark what stands out.
+function ReviewEditor({
+  initialHtml,
+  onChange,
+  night,
+}: {
+  initialHtml: string;
+  onChange: (html: string) => void;
+  night: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current) ref.current.innerHTML = initialHtml || "<p></p>";
+    // initialise once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const emit = () => onChange(ref.current?.innerHTML ?? "");
+
+  const exec = (cmd: string, val?: string) => {
+    ref.current?.focus();
+    document.execCommand(cmd, false, val);
+    emit();
+  };
+
+  const highlight = () => {
+    ref.current?.focus();
+    try {
+      document.execCommand("styleWithCSS", false, "true");
+    } catch {
+      /* ignore */
+    }
+    document.execCommand("hiliteColor", false, night ? "#5a3340" : "#ffd9e6");
+    emit();
+  };
+
+  const ToolBtn = ({
+    onClick,
+    label,
+    children,
+  }: {
+    onClick: () => void;
+    label: string;
+    children: React.ReactNode;
+  }) => (
+    <button
+      type="button"
+      aria-label={label}
+      onMouseDown={(e) => e.preventDefault()} // keep the text selection
+      onClick={onClick}
+      className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      {children}
+    </button>
+  );
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm">
+      <div className="flex items-center gap-0.5 border-b border-border/60 px-2 py-1.5">
+        <ToolBtn onClick={() => exec("bold")} label="Bold">
+          <Bold className="h-4 w-4" />
+        </ToolBtn>
+        <ToolBtn onClick={() => exec("underline")} label="Underline">
+          <Underline className="h-4 w-4" />
+        </ToolBtn>
+        <ToolBtn onClick={highlight} label="Highlight">
+          <Highlighter className="h-4 w-4" />
+        </ToolBtn>
+        <span className="ml-1.5 truncate text-[11px] text-muted-foreground">
+          Select text, then mark what stands out
+        </span>
+      </div>
+      <div
+        ref={ref}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={emit}
+        className="rich-content min-h-44 px-4 py-3 text-sm leading-relaxed text-foreground outline-none"
+      />
     </div>
   );
 }

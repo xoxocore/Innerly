@@ -16,6 +16,7 @@ export type Reflection = {
   date: string; // ISO
   moments: ReflectionMoment[];
   differently: string; // what to do differently next time
+  review?: string; // pause & review — user's marked-up HTML (bold/underline/highlight)
 };
 
 export type Task = {
