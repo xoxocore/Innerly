@@ -152,8 +152,8 @@ h4 {
   opacity: 1;
 }
 .hero-card:hover .hero-surface {
-  box-shadow: 0 16px 40px -18px rgba(15, 23, 42, 0.2),
-    0 0 55px -2px rgba(255, 158, 193, 0.9);
+  box-shadow: 0 14px 36px -20px rgba(15, 23, 42, 0.16),
+    0 0 30px -8px rgba(255, 176, 205, 0.4);
 }
 .hero-card:hover .hero-icon {
   background-color: #fbe0ea;
@@ -163,8 +163,8 @@ h4 {
   box-shadow: 0 8px 30px -16px rgba(0, 0, 0, 0.5);
 }
 .dark .hero-card:hover .hero-surface {
-  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.55),
-    0 0 55px -2px rgba(199, 210, 229, 0.55);
+  box-shadow: 0 14px 36px -20px rgba(0, 0, 0, 0.5),
+    0 0 30px -8px rgba(199, 210, 229, 0.32);
 }
 .dark .hero-card:hover .hero-icon {
   background-color: rgba(255, 255, 255, 0.12);
@@ -207,4 +207,8 @@ h4 {
 }
 .rich-content a {
   text-decoration: underline;
+}
+/* let the entry topic breathe above its paragraph(s) */
+.rich-content p + p {
+  margin-top: 0.5rem;
 }

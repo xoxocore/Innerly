@@ -51,8 +51,8 @@ function FeatureCard({
   const Icon = feature.icon;
   // soft powder-pink bloom (silver moonlight in night mode)
   const bloom = night
-    ? "radial-gradient(62% 60% at 50% 0%, rgba(214,222,245,0.9), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(194,206,234,0.75), transparent 74%)"
-    : "radial-gradient(62% 60% at 50% 0%, rgba(255,194,216,0.95), transparent 72%), radial-gradient(62% 54% at 50% 100%, rgba(255,178,206,0.8), transparent 74%)";
+    ? "radial-gradient(60% 58% at 50% 0%, rgba(214,222,245,0.5), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(194,206,234,0.38), transparent 74%)"
+    : "radial-gradient(60% 58% at 50% 0%, rgba(255,203,222,0.55), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(255,191,214,0.4), transparent 74%)";
 
   return (
     <motion.button
