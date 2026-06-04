@@ -68,14 +68,14 @@ function FeatureCard({
         style={{ background: bloom }}
       />
       {/* liquid glass surface */}
-      <span className="relative block overflow-hidden rounded-2xl border border-border/60 bg-card/60 p-4 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-secondary/70 text-foreground transition-colors duration-300 group-hover:bg-[#fdebd9] group-hover:text-[#b45309] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
-          <Icon className="h-[17px] w-[17px]" />
+      <span className="relative block overflow-hidden rounded-2xl border border-border/60 bg-card/60 p-5 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
+        <span className="grid h-11 w-11 place-items-center rounded-full bg-secondary/80 text-foreground transition-colors duration-300 group-hover:bg-[#fdebd9] group-hover:text-[#b45309] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
+          <Icon className="h-5 w-5" />
         </span>
-        <h3 className="title-strong mt-3 text-sm leading-snug text-heading">
+        <h3 className="title-strong mt-4 text-[15px] leading-snug text-heading">
           {feature.title}
         </h3>
-        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
           {feature.desc}
         </p>
       </span>
@@ -110,7 +110,7 @@ export function Dashboard() {
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           {c.breadcrumb}
         </p>
-        <h1 className="mt-2.5 max-w-2xl text-[1.6rem] font-light leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
+        <h1 className="title-regular mt-2.5 max-w-3xl text-[2rem] leading-[1.12] tracking-tight text-heading sm:text-[2.5rem]">
           {fill(c.greeting, { name })}
         </h1>
         <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">

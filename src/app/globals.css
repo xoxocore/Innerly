@@ -131,6 +131,9 @@ h4 {
 .title-medium {
   font-weight: 500 !important;
 }
+.title-regular {
+  font-weight: 400 !important;
+}
 
 /* contentEditable placeholder for the rich-text editor */
 [data-placeholder]:empty::before {
