@@ -12,6 +12,7 @@ import {
   Highlighter,
 } from "lucide-react";
 import { MultiAdd } from "@/components/innerly/multi-add";
+import { AutoTextarea } from "@/components/innerly/auto-textarea";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/app-context";
@@ -66,27 +67,30 @@ export function Reflect() {
   const [done, setDone] = useState(false);
   const [moments, setMoments] = useState<string[]>([""]);
   const [whys, setWhys] = useState<Record<number, string>>({});
-  const [review, setReview] = useState("");
+  const [reviewParts, setReviewParts] = useState<Record<number, string>>({});
   const [differently, setDifferently] = useState("");
 
   const cleanMoments = moments.map((m) => m.trim()).filter(Boolean);
   const canContinue = cleanMoments.length > 0;
 
-  // The plain starting text for Pause & Review (the user then marks it up).
-  const reviewBase = cleanMoments
-    .map((m, i) => {
-      const why = whys[i]?.trim();
-      return `<p>${esc(m)}</p>` + (why ? `<p>${esc(why)}</p>` : "");
-    })
-    .join("");
+  // Starting HTML for a Pause & Review card (the user then marks it up).
+  const partBase = (m: string, why?: string) =>
+    `<p>${esc(m)}</p>` +
+    (why ? `<p style="color:var(--muted-foreground)">${esc(why)}</p>` : "");
 
   const save = () => {
+    const review = cleanMoments
+      .map(
+        (m, i) =>
+          `<section>${reviewParts[i] ?? partBase(m, whys[i]?.trim())}</section>`
+      )
+      .join("");
     const reflection: Reflection = {
       id: uid(),
       date: new Date().toISOString(),
       moments: cleanMoments.map((text, i) => ({ text, why: whys[i] ?? "" })),
       differently: differently.trim(),
-      review: (review || reviewBase) || undefined,
+      review: review || undefined,
     };
     setReflections((prev) => [...prev, reflection]);
     setDone(true);
@@ -175,12 +179,11 @@ export function Reflect() {
                           />
                           {m}
                         </p>
-                        <textarea
+                        <AutoTextarea
                           value={whys[i] ?? ""}
                           onChange={(e) => setWhys((p) => ({ ...p, [i]: e.target.value }))}
-                          rows={3}
                           placeholder="Because…"
-                          className={cn("mt-2", writeBox)}
+                          className={cn("mt-2 min-h-[4.5rem]", writeBox)}
                         />
                       </div>
                     );
@@ -193,13 +196,19 @@ export function Reflect() {
                   <p className="text-[13px] leading-relaxed text-muted-foreground">
                     {c.step3Intro}
                   </p>
-                  <div className="mt-5">
-                    <ReviewEditor
-                      key="review"
-                      initialHtml={review || reviewBase}
-                      onChange={setReview}
-                      night={night}
-                    />
+                  <ReviewToolbar night={night} />
+                  <div className="mt-4 space-y-3">
+                    {cleanMoments.map((m, i) => (
+                      <ReviewCard
+                        key={i}
+                        color={SOFT[i % SOFT.length]}
+                        night={night}
+                        initialHtml={reviewParts[i] ?? partBase(m, whys[i]?.trim())}
+                        onChange={(html) =>
+                          setReviewParts((p) => ({ ...p, [i]: html }))
+                        }
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -264,41 +273,20 @@ export function Reflect() {
   );
 }
 
-// Pause & Review — re-read your own words and mark what stands out.
-function ReviewEditor({
-  initialHtml,
-  onChange,
-  night,
-}: {
-  initialHtml: string;
-  onChange: (html: string) => void;
-  night: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (ref.current) ref.current.innerHTML = initialHtml || "<p></p>";
-    // initialise once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const emit = () => onChange(ref.current?.innerHTML ?? "");
-
-  const exec = (cmd: string, val?: string) => {
-    ref.current?.focus();
-    document.execCommand(cmd, false, val);
-    emit();
-  };
+// Shared toolbar — applies formatting to whichever review card is focused.
+// document.execCommand acts on the current selection in any contentEditable,
+// and fires an `input` event so the focused card persists its change.
+function ReviewToolbar({ night }: { night: boolean }) {
+  const cmd = (command: string, value?: string) =>
+    document.execCommand(command, false, value);
 
   const highlight = () => {
-    ref.current?.focus();
     try {
       document.execCommand("styleWithCSS", false, "true");
     } catch {
       /* ignore */
     }
     document.execCommand("hiliteColor", false, night ? "#5a3340" : "#ffd9e6");
-    emit();
   };
 
   const ToolBtn = ({
@@ -322,29 +310,62 @@ function ReviewEditor({
   );
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/60 backdrop-blur-sm">
-      <div className="flex items-center gap-0.5 border-b border-border/60 px-2 py-1.5">
-        <ToolBtn onClick={() => exec("bold")} label="Bold">
-          <Bold className="h-4 w-4" />
-        </ToolBtn>
-        <ToolBtn onClick={() => exec("underline")} label="Underline">
-          <Underline className="h-4 w-4" />
-        </ToolBtn>
-        <ToolBtn onClick={highlight} label="Highlight">
-          <Highlighter className="h-4 w-4" />
-        </ToolBtn>
-        <span className="ml-1.5 truncate text-[11px] text-muted-foreground">
-          Select text, then mark what stands out
-        </span>
-      </div>
+    <div className="mt-4 flex items-center gap-0.5 rounded-2xl border border-border/60 bg-card/60 px-2 py-1.5 backdrop-blur-sm">
+      <ToolBtn onClick={() => cmd("bold")} label="Bold">
+        <Bold className="h-4 w-4" />
+      </ToolBtn>
+      <ToolBtn onClick={() => cmd("underline")} label="Underline">
+        <Underline className="h-4 w-4" />
+      </ToolBtn>
+      <ToolBtn onClick={highlight} label="Highlight">
+        <Highlighter className="h-4 w-4" />
+      </ToolBtn>
+      <span className="ml-1.5 truncate text-[11px] text-muted-foreground">
+        Select text in a card, then mark what stands out
+      </span>
+    </div>
+  );
+}
+
+// One reviewable moment, in its own soft card — editable for highlights.
+function ReviewCard({
+  color,
+  night,
+  initialHtml,
+  onChange,
+}: {
+  color: { dot: string; soft: string; softDark: string };
+  night: boolean;
+  initialHtml: string;
+  onChange: (html: string) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (ref.current) ref.current.innerHTML = initialHtml || "<p></p>";
+    // initialise once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ ease: EASE }}
+      className="rounded-2xl border-l-2 py-3 pl-4 pr-3"
+      style={{
+        borderColor: color.dot,
+        backgroundColor: night ? color.softDark : color.soft,
+      }}
+    >
       <div
         ref={ref}
         contentEditable
         suppressContentEditableWarning
-        onInput={emit}
-        className="rich-content min-h-44 px-4 py-3 text-sm leading-relaxed text-foreground outline-none"
+        onInput={() => onChange(ref.current?.innerHTML ?? "")}
+        className="rich-content min-h-[2rem] text-sm leading-relaxed text-foreground outline-none"
       />
-    </div>
+    </motion.div>
   );
 }
 

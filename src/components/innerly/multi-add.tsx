@@ -1,6 +1,7 @@
 "use client";
 
 import { Plus, X } from "lucide-react";
+import { AutoTextarea } from "@/components/innerly/auto-textarea";
 
 // Repeating list of free-text inputs with "add another" — used across Manifestation
 // and the nightly check-in. Always renders at least one row.
@@ -39,12 +40,11 @@ export function MultiAdd({
               {String(i + 1).padStart(2, "0")}
             </span>
           )}
-          <textarea
+          <AutoTextarea
             value={value}
             onChange={(e) => update(i, e.target.value)}
             placeholder={placeholders?.[i % placeholders.length]}
-            rows={1}
-            className="min-h-12 flex-1 resize-none rounded-2xl border border-input bg-card px-4 py-3 text-[15px] leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-ring"
+            className="min-h-12 flex-1 rounded-2xl border border-input bg-card px-4 py-3 text-[15px] leading-relaxed text-foreground outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-ring"
           />
           {rows.length > 1 && (
             <button
