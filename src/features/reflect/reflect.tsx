@@ -68,7 +68,7 @@ export function Reflect() {
   const [moments, setMoments] = useState<string[]>([""]);
   const [whys, setWhys] = useState<Record<number, string>>({});
   const [reviewParts, setReviewParts] = useState<Record<number, string>>({});
-  const [nexts, setNexts] = useState<Record<number, string>>({});
+  const [nexts, setNexts] = useState<Record<number, string[]>>({});
 
   const cleanMoments = moments.map((m) => m.trim()).filter(Boolean);
   const canContinue = cleanMoments.length > 0;
@@ -88,15 +88,13 @@ export function Reflect() {
     const reflection: Reflection = {
       id: uid(),
       date: new Date().toISOString(),
-      moments: cleanMoments.map((text, i) => ({
-        text,
-        why: whys[i] ?? "",
-        next: nexts[i]?.trim() || undefined,
-      })),
+      moments: cleanMoments.map((text, i) => {
+        const points = (nexts[i] ?? []).map((s) => s.trim()).filter(Boolean);
+        return { text, why: whys[i] ?? "", next: points.length ? points : undefined };
+      }),
       // keep a combined string for the dashboard "reminders" + history
       differently: cleanMoments
-        .map((_, i) => nexts[i]?.trim())
-        .filter(Boolean)
+        .flatMap((_, i) => (nexts[i] ?? []).map((s) => s.trim()).filter(Boolean))
         .join(" · "),
       review: review || undefined,
     };
@@ -243,17 +241,15 @@ export function Reflect() {
                           />
                         </div>
 
-                        {/* per-entry next step */}
-                        <p className="mb-1.5 mt-3 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                        {/* per-entry next steps — add as many points as you like */}
+                        <p className="mb-2 mt-4 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                           What I&apos;ll do next
                         </p>
-                        <AutoTextarea
-                          value={nexts[i] ?? ""}
-                          onChange={(e) =>
-                            setNexts((p) => ({ ...p, [i]: e.target.value }))
-                          }
-                          placeholder="Next time, I will… (speak to yourself kindly)"
-                          className={cn("min-h-[5rem]", writeBox)}
+                        <MultiAdd
+                          values={nexts[i] ?? [""]}
+                          onChange={(next) => setNexts((p) => ({ ...p, [i]: next }))}
+                          placeholders={["Next time, I will… (speak to yourself kindly)"]}
+                          addLabel="Add a point"
                         />
                       </div>
                     );
