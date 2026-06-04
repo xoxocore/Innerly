@@ -68,7 +68,7 @@ export function Reflect() {
   const [moments, setMoments] = useState<string[]>([""]);
   const [whys, setWhys] = useState<Record<number, string>>({});
   const [reviewParts, setReviewParts] = useState<Record<number, string>>({});
-  const [differently, setDifferently] = useState("");
+  const [nexts, setNexts] = useState<Record<number, string>>({});
 
   const cleanMoments = moments.map((m) => m.trim()).filter(Boolean);
   const canContinue = cleanMoments.length > 0;
@@ -88,8 +88,16 @@ export function Reflect() {
     const reflection: Reflection = {
       id: uid(),
       date: new Date().toISOString(),
-      moments: cleanMoments.map((text, i) => ({ text, why: whys[i] ?? "" })),
-      differently: differently.trim(),
+      moments: cleanMoments.map((text, i) => ({
+        text,
+        why: whys[i] ?? "",
+        next: nexts[i]?.trim() || undefined,
+      })),
+      // keep a combined string for the dashboard "reminders" + history
+      differently: cleanMoments
+        .map((_, i) => nexts[i]?.trim())
+        .filter(Boolean)
+        .join(" · "),
       review: review || undefined,
     };
     setReflections((prev) => [...prev, reflection]);
@@ -214,14 +222,43 @@ export function Reflect() {
               )}
 
               {step === 3 && (
-                <textarea
-                  value={differently}
-                  onChange={(e) => setDifferently(e.target.value)}
-                  rows={6}
-                  placeholder="Next time, I will… (speak to yourself kindly)"
-                  className={writeBox}
-                  autoFocus
-                />
+                <div className="space-y-5">
+                  {cleanMoments.map((m, i) => {
+                    const color = SOFT[i % SOFT.length];
+                    const recap = reviewParts[i] ?? partBase(m, whys[i]?.trim());
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-2xl border border-border/50 bg-card/40 p-4 backdrop-blur-sm"
+                      >
+                        {/* recap of steps 1–3 for this entry */}
+                        <div className="flex items-start gap-2">
+                          <span
+                            className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                            style={{ backgroundColor: color.dot }}
+                          />
+                          <div
+                            className="rich-content min-w-0 flex-1 text-[13px] leading-relaxed text-foreground/90"
+                            dangerouslySetInnerHTML={{ __html: recap }}
+                          />
+                        </div>
+
+                        {/* per-entry next step */}
+                        <p className="mb-1.5 mt-3 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                          What I&apos;ll do next
+                        </p>
+                        <AutoTextarea
+                          value={nexts[i] ?? ""}
+                          onChange={(e) =>
+                            setNexts((p) => ({ ...p, [i]: e.target.value }))
+                          }
+                          placeholder="Next time, I will… (speak to yourself kindly)"
+                          className={cn("min-h-[5rem]", writeBox)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 

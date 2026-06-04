@@ -9,6 +9,7 @@ export type Profile = {
 export type ReflectionMoment = {
   text: string; // what felt heavy
   why: string; // why it happened
+  next?: string; // what I'll do differently next time (per entry)
 };
 
 export type Reflection = {
