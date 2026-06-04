@@ -51,8 +51,8 @@ function FeatureCard({
   const Icon = feature.icon;
   // soft powder-pink bloom (silver moonlight in night mode)
   const bloom = night
-    ? "radial-gradient(62% 60% at 50% 0%, rgba(214,222,245,0.7), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(194,206,234,0.6), transparent 74%)"
-    : "radial-gradient(60% 58% at 50% 0%, rgba(255,201,220,0.63), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(255,189,212,0.49), transparent 74%)";
+    ? "radial-gradient(62% 60% at 50% 0%, rgba(214,222,245,0.85), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(194,206,234,0.7), transparent 74%)"
+    : "radial-gradient(62% 60% at 50% 0%, rgba(255,196,217,0.92), transparent 72%), radial-gradient(62% 54% at 50% 100%, rgba(255,182,208,0.72), transparent 74%)";
 
   return (
     <motion.button
@@ -63,14 +63,14 @@ function FeatureCard({
       transition={{ type: "spring", stiffness: 280, damping: 24 }}
       className="group relative rounded-2xl text-left"
     >
-      {/* sunrise bloom behind the glass */}
+      {/* powder-pink bloom behind + peeking around the glass */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -inset-4 -z-10 rounded-[2.25rem] opacity-0 blur-2xl transition-opacity duration-500 ease-out group-hover:opacity-100"
+        className="pointer-events-none absolute -inset-6 -z-10 rounded-[2.5rem] opacity-0 blur-2xl transition-opacity duration-500 ease-out group-hover:opacity-100"
         style={{ background: bloom }}
       />
-      {/* liquid glass surface */}
-      <span className="relative block overflow-hidden rounded-2xl border border-border/50 bg-card/45 p-4 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
+      {/* liquid glass surface — soft pink glow halo on hover (silver in dark) */}
+      <span className="relative block overflow-hidden rounded-2xl border border-border/50 bg-card/45 p-4 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.20),0_0_42px_-4px_rgba(255,175,203,0.65)] dark:group-hover:shadow-[0_18px_44px_-18px_rgba(0,0,0,0.5),0_0_42px_-4px_rgba(199,210,229,0.5)]">
         <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary/80 text-foreground transition-colors duration-300 group-hover:bg-[#fbe0ea] group-hover:text-[#be185d] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
           <Icon className="h-[18px] w-[18px]" />
         </span>
