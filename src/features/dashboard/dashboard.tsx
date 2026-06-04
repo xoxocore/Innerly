@@ -52,7 +52,7 @@ function FeatureCard({
   // soft powder-pink bloom (silver moonlight in night mode)
   const bloom = night
     ? "radial-gradient(62% 60% at 50% 0%, rgba(214,222,245,0.7), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(194,206,234,0.6), transparent 74%)"
-    : "radial-gradient(62% 62% at 50% 0%, rgba(255,150,190,0.95), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(255,135,182,0.85), transparent 74%)";
+    : "radial-gradient(60% 58% at 50% 0%, rgba(255,202,221,0.55), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(255,190,213,0.42), transparent 74%)";
 
   return (
     <motion.button
@@ -66,7 +66,7 @@ function FeatureCard({
       {/* sunrise bloom behind the glass */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -inset-5 -z-10 rounded-[2.25rem] opacity-0 blur-xl transition-opacity duration-500 ease-out group-hover:opacity-100"
+        className="pointer-events-none absolute -inset-4 -z-10 rounded-[2.25rem] opacity-0 blur-2xl transition-opacity duration-500 ease-out group-hover:opacity-100"
         style={{ background: bloom }}
       />
       {/* liquid glass surface */}
