@@ -139,7 +139,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
 
-      <main className="flex-1">
+      <main className="app-bg flex-1">
         <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 lg:py-12">
           {children}
         </div>

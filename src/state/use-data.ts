@@ -160,8 +160,28 @@ export function useTodayPlan() {
     setTasks((prev) => [...prev, { id: uid(), title: t, done: false }]);
   };
 
+  const remove = (item: TodayItem) => {
+    if (item.source === "goal") {
+      setGoals((prev) =>
+        prev.map((g) =>
+          g.id === item.goalId
+            ? {
+                ...g,
+                horizons: {
+                  ...g.horizons,
+                  today: g.horizons.today.filter((s) => s.id !== item.id),
+                },
+              }
+            : g
+        )
+      );
+    } else {
+      setTasks((prev) => prev.filter((t) => t.id !== item.id));
+    }
+  };
+
   const total = items.length;
   const done = items.filter((i) => i.done).length;
 
-  return { items, toggle, addTask, total, done };
+  return { items, toggle, addTask, remove, total, done };
 }

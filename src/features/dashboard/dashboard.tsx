@@ -11,6 +11,7 @@ import {
   Check,
   Plus,
   ListChecks,
+  X,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,8 +51,8 @@ function FeatureCard({
   const Icon = feature.icon;
   // soft powder-pink bloom (silver moonlight in night mode)
   const bloom = night
-    ? "radial-gradient(55% 55% at 50% 0%, rgba(209,218,242,0.55), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(188,200,230,0.45), transparent 72%)"
-    : "radial-gradient(55% 55% at 50% 0%, rgba(255,192,212,0.80), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(252,170,200,0.62), transparent 72%)";
+    ? "radial-gradient(62% 60% at 50% 0%, rgba(214,222,245,0.7), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(194,206,234,0.6), transparent 74%)"
+    : "radial-gradient(62% 62% at 50% 0%, rgba(255,150,190,0.95), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(255,135,182,0.85), transparent 74%)";
 
   return (
     <motion.button
@@ -65,11 +66,11 @@ function FeatureCard({
       {/* sunrise bloom behind the glass */}
       <span
         aria-hidden
-        className="pointer-events-none absolute -inset-3 -z-10 rounded-[2rem] opacity-0 blur-2xl transition-opacity duration-500 ease-out group-hover:opacity-100"
+        className="pointer-events-none absolute -inset-5 -z-10 rounded-[2.25rem] opacity-0 blur-xl transition-opacity duration-500 ease-out group-hover:opacity-100"
         style={{ background: bloom }}
       />
       {/* liquid glass surface */}
-      <span className="relative block overflow-hidden rounded-2xl border border-border/50 bg-card/55 p-5 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
+      <span className="relative block overflow-hidden rounded-2xl border border-border/50 bg-card/45 p-5 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
         <span className="grid h-11 w-11 place-items-center rounded-full bg-secondary/80 text-foreground transition-colors duration-300 group-hover:bg-[#fbe0ea] group-hover:text-[#be185d] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
           <Icon className="h-5 w-5" />
         </span>
@@ -141,7 +142,7 @@ export function Dashboard() {
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
 
         {/* Reminders to yourself */}
-        <Card className="border-border/60 bg-card/55 p-5 backdrop-blur-2xl">
+        <Card className="border-border/60 bg-card/45 p-5 backdrop-blur-2xl">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {c.remindersEyebrow}
           </p>
@@ -193,7 +194,7 @@ export function Dashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         <NightCheckIn />
         <button onClick={() => navigate("blog")} className="block w-full text-left">
-          <Card className="h-full overflow-hidden border-border/50 bg-card/55 backdrop-blur-2xl transition-colors hover:bg-accent/60">
+          <Card className="h-full overflow-hidden border-border/50 bg-card/45 backdrop-blur-2xl transition-colors hover:bg-accent/60">
             <div
               className="h-20 w-full"
               style={{ backgroundImage: gradient(latestPost.gradient) }}
@@ -236,7 +237,7 @@ function TodoList({
   };
 
   return (
-    <Card className="flex flex-col border-border/60 bg-card/55 p-5 backdrop-blur-2xl">
+    <Card className="flex flex-col border-border/60 bg-card/45 p-5 backdrop-blur-2xl">
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
@@ -269,6 +270,7 @@ function TodoList({
                     key={`${item.source}-${item.id}`}
                     item={item}
                     onToggle={() => today.toggle(item)}
+                    onRemove={() => today.remove(item)}
                   />
                 ))}
             </AnimatePresence>
@@ -299,61 +301,90 @@ function TodoList({
             </Button>
           </form>
         ) : (
-          <button
+          <motion.button
             onClick={() => setAdding(true)}
-            className="mx-auto flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-[#0f766e]"
+            whileHover="spin"
+            initial="rest"
+            animate="rest"
+            className="mx-auto flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-[#be185d]"
           >
-            <Plus className="h-4 w-4" /> Add Task
-          </button>
+            <motion.span
+              variants={{ rest: { rotate: 0 }, spin: { rotate: 360 } }}
+              transition={{ duration: 0.6, ease: "easeInOut" }}
+              className="inline-flex"
+            >
+              <Plus className="h-4 w-4" />
+            </motion.span>
+            Add Task
+          </motion.button>
         )}
       </div>
     </Card>
   );
 }
 
-function TodoRow({ item, onToggle }: { item: TodayItem; onToggle: () => void }) {
+function TodoRow({
+  item,
+  onToggle,
+  onRemove,
+}: {
+  item: TodayItem;
+  onToggle: () => void;
+  onRemove: () => void;
+}) {
   return (
     <motion.li
       layout
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0 }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ type: "spring", stiffness: 500, damping: 42 }}
+      className="group flex items-center gap-3 border-b border-border px-2 py-3 last:border-b-0"
     >
-      <button
+      <div
         onClick={onToggle}
-        className="flex w-full items-center gap-3 rounded-xl border-b border-border px-2 py-3 text-left last:border-b-0 hover:bg-accent/60"
+        className="min-w-0 flex-1 cursor-pointer select-none"
       >
-        <div className="min-w-0 flex-1">
+        <p
+          className={cn(
+            "truncate text-sm leading-snug text-foreground",
+            item.done && "text-muted-foreground line-through"
+          )}
+        >
+          {item.title}
+        </p>
+        {item.source === "goal" && item.goalTitle && (
           <p
             className={cn(
-              "truncate text-sm leading-snug text-foreground",
-              item.done && "text-muted-foreground line-through"
+              "mt-0.5 truncate text-xs text-muted-foreground",
+              item.done && "line-through"
             )}
           >
-            {item.title}
+            {item.goalTitle}
           </p>
-          {item.source === "goal" && item.goalTitle && (
-            <p
-              className={cn(
-                "mt-0.5 truncate text-xs text-muted-foreground",
-                item.done && "line-through"
-              )}
-            >
-              {item.goalTitle}
-            </p>
-          )}
-        </div>
-        <motion.span
-          whileTap={{ scale: 0.85 }}
-          className="grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors"
-          style={{
-            borderColor: item.done ? DONE_GREEN : "var(--border)",
-            backgroundColor: item.done ? DONE_GREEN : "transparent",
-          }}
-        >
-          {item.done && <Check className="h-3.5 w-3.5 text-white" />}
-        </motion.span>
+        )}
+      </div>
+
+      <button
+        onClick={onRemove}
+        aria-label="Remove task"
+        className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+      >
+        <X className="h-4 w-4" />
       </button>
+
+      <motion.button
+        onClick={onToggle}
+        whileTap={{ scale: 0.85 }}
+        aria-label={item.done ? "Mark incomplete" : "Mark complete"}
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors"
+        style={{
+          borderColor: item.done ? DONE_GREEN : "var(--border)",
+          backgroundColor: item.done ? DONE_GREEN : "transparent",
+        }}
+      >
+        {item.done && <Check className="h-3.5 w-3.5 text-white" />}
+      </motion.button>
     </motion.li>
   );
 }
@@ -380,7 +411,7 @@ function NightCheckIn() {
   };
 
   return (
-    <Card className="border-border/60 bg-card/55 p-5 backdrop-blur-2xl">
+    <Card className="border-border/60 bg-card/45 p-5 backdrop-blur-2xl">
       <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
         {c.nightEyebrow}
       </p>
