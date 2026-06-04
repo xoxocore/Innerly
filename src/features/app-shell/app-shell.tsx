@@ -111,8 +111,8 @@ function SectionLabel({ children }: { children: ReactNode }) {
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-background lg:flex-row">
-      {/* Desktop sidebar — translucent glass */}
-      <aside className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col lg:gap-7 lg:border-r lg:border-border/60 lg:bg-card/50 lg:p-5 lg:backdrop-blur-xl">
+      {/* Desktop sidebar — frozen (sticky), solid glass */}
+      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 lg:shrink-0 lg:flex-col lg:gap-7 lg:self-start lg:overflow-y-auto lg:border-r lg:border-border/60 lg:bg-card/85 lg:p-5 lg:backdrop-blur-xl">
         <Brand />
         <nav className="flex flex-1 flex-col gap-0.5">
           {MAIN.map((item) => (

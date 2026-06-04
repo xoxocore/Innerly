@@ -48,9 +48,10 @@ function FeatureCard({
   onClick: () => void;
 }) {
   const Icon = feature.icon;
+  // soft powder-pink bloom (silver moonlight in night mode)
   const bloom = night
-    ? "radial-gradient(55% 55% at 50% 0%, rgba(209,218,242,0.60), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(188,200,230,0.50), transparent 72%)"
-    : "radial-gradient(55% 55% at 50% 0%, rgba(255,178,107,0.85), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(255,143,82,0.62), transparent 72%)";
+    ? "radial-gradient(55% 55% at 50% 0%, rgba(209,218,242,0.55), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(188,200,230,0.45), transparent 72%)"
+    : "radial-gradient(55% 55% at 50% 0%, rgba(255,192,212,0.80), transparent 70%), radial-gradient(55% 50% at 50% 100%, rgba(252,170,200,0.62), transparent 72%)";
 
   return (
     <motion.button
@@ -68,8 +69,8 @@ function FeatureCard({
         style={{ background: bloom }}
       />
       {/* liquid glass surface */}
-      <span className="relative block overflow-hidden rounded-2xl border border-border/60 bg-card/60 p-5 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
-        <span className="grid h-11 w-11 place-items-center rounded-full bg-secondary/80 text-foreground transition-colors duration-300 group-hover:bg-[#fdebd9] group-hover:text-[#b45309] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
+      <span className="relative block overflow-hidden rounded-2xl border border-border/50 bg-card/55 p-5 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
+        <span className="grid h-11 w-11 place-items-center rounded-full bg-secondary/80 text-foreground transition-colors duration-300 group-hover:bg-[#fbe0ea] group-hover:text-[#be185d] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
           <Icon className="h-5 w-5" />
         </span>
         <h3 className="title-strong mt-4 text-[15px] leading-snug text-heading">
@@ -140,7 +141,7 @@ export function Dashboard() {
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
 
         {/* Reminders to yourself */}
-        <Card className="border-border/60 bg-card/60 p-5 backdrop-blur-xl">
+        <Card className="border-border/60 bg-card/55 p-5 backdrop-blur-2xl">
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {c.remindersEyebrow}
           </p>
@@ -192,7 +193,7 @@ export function Dashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         <NightCheckIn />
         <button onClick={() => navigate("blog")} className="block w-full text-left">
-          <Card className="h-full overflow-hidden border-border/60 bg-card/60 backdrop-blur-xl transition-colors hover:bg-accent/60">
+          <Card className="h-full overflow-hidden border-border/50 bg-card/55 backdrop-blur-2xl transition-colors hover:bg-accent/60">
             <div
               className="h-20 w-full"
               style={{ backgroundImage: gradient(latestPost.gradient) }}
@@ -235,7 +236,7 @@ function TodoList({
   };
 
   return (
-    <Card className="flex flex-col border-border/60 bg-card/60 p-5 backdrop-blur-xl">
+    <Card className="flex flex-col border-border/60 bg-card/55 p-5 backdrop-blur-2xl">
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
@@ -261,9 +262,15 @@ function TodoList({
         ) : (
           <ul className="-mx-2">
             <AnimatePresence initial={false}>
-              {today.items.map((item) => (
-                <TodoRow key={`${item.source}-${item.id}`} item={item} onToggle={() => today.toggle(item)} />
-              ))}
+              {[...today.items]
+                .sort((a, b) => Number(a.done) - Number(b.done))
+                .map((item) => (
+                  <TodoRow
+                    key={`${item.source}-${item.id}`}
+                    item={item}
+                    onToggle={() => today.toggle(item)}
+                  />
+                ))}
             </AnimatePresence>
           </ul>
         )}
@@ -373,7 +380,7 @@ function NightCheckIn() {
   };
 
   return (
-    <Card className="border-border/60 bg-card/60 p-5 backdrop-blur-xl">
+    <Card className="border-border/60 bg-card/55 p-5 backdrop-blur-2xl">
       <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
         {c.nightEyebrow}
       </p>
