@@ -52,7 +52,7 @@ function FeatureCard({
   // soft powder-pink bloom (silver moonlight in night mode)
   const bloom = night
     ? "radial-gradient(62% 60% at 50% 0%, rgba(214,222,245,0.7), transparent 72%), radial-gradient(62% 56% at 50% 100%, rgba(194,206,234,0.6), transparent 74%)"
-    : "radial-gradient(60% 58% at 50% 0%, rgba(255,202,221,0.55), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(255,190,213,0.42), transparent 74%)";
+    : "radial-gradient(60% 58% at 50% 0%, rgba(255,201,220,0.63), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(255,189,212,0.49), transparent 74%)";
 
   return (
     <motion.button
@@ -70,14 +70,14 @@ function FeatureCard({
         style={{ background: bloom }}
       />
       {/* liquid glass surface */}
-      <span className="relative block overflow-hidden rounded-2xl border border-border/50 bg-card/45 p-5 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
-        <span className="grid h-11 w-11 place-items-center rounded-full bg-secondary/80 text-foreground transition-colors duration-300 group-hover:bg-[#fbe0ea] group-hover:text-[#be185d] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
-          <Icon className="h-5 w-5" />
+      <span className="relative block overflow-hidden rounded-2xl border border-border/50 bg-card/45 p-4 shadow-[0_8px_30px_-16px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition-shadow duration-500 group-hover:shadow-[0_18px_44px_-18px_rgba(15,23,42,0.22)]">
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary/80 text-foreground transition-colors duration-300 group-hover:bg-[#fbe0ea] group-hover:text-[#be185d] dark:group-hover:bg-white/10 dark:group-hover:text-[#cbd5e1]">
+          <Icon className="h-[18px] w-[18px]" />
         </span>
-        <h3 className="title-strong mt-4 text-[15px] leading-snug text-heading">
+        <h3 className="title-strong mt-3 text-sm leading-snug text-heading">
           {feature.title}
         </h3>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
           {feature.desc}
         </p>
       </span>
@@ -106,7 +106,7 @@ export function Dashboard() {
   const latestPost = BLOG_POSTS[0];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Hero */}
       <header>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
@@ -125,7 +125,7 @@ export function Dashboard() {
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 gap-4 md:grid-cols-4"
+        className="grid grid-cols-2 gap-5 pt-2 md:grid-cols-4"
       >
         {FEATURES.map((f) => (
           <FeatureCard
@@ -138,7 +138,7 @@ export function Dashboard() {
       </motion.div>
 
       {/* Today + Reminders */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
 
         {/* Reminders to yourself */}
@@ -146,7 +146,7 @@ export function Dashboard() {
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
             {c.remindersEyebrow}
           </p>
-          <h2 className="title-medium mt-1.5 text-[15px] text-heading">{c.remindersTitle}</h2>
+          <h2 className="title-medium mt-1.5 text-sm text-heading">{c.remindersTitle}</h2>
           <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
             {c.remindersDesc}
           </p>
@@ -191,7 +191,7 @@ export function Dashboard() {
       </div>
 
       {/* Secondary: nightly check-in + blog */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <NightCheckIn />
         <button onClick={() => navigate("blog")} className="block w-full text-left">
           <Card className="h-full overflow-hidden border-border/50 bg-card/45 backdrop-blur-2xl transition-colors hover:bg-accent/60">
@@ -203,7 +203,7 @@ export function Dashboard() {
               <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {c.blogEyebrow}
               </p>
-              <h3 className="title-medium mt-1.5 text-[15px] text-heading">{latestPost.title}</h3>
+              <h3 className="title-medium mt-1.5 text-sm text-heading">{latestPost.title}</h3>
               <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
                 {latestPost.excerpt}
               </p>
@@ -241,7 +241,7 @@ function TodoList({
       {/* header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="title-medium text-[15px] tracking-tight text-heading">{c.todayTitle}</h2>
+          <h2 className="title-medium text-sm tracking-tight text-heading">{c.todayTitle}</h2>
           <p className="mt-1 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
             <CalendarDays className="h-3.5 w-3.5" /> {dateLabel}
           </p>
@@ -415,7 +415,7 @@ function NightCheckIn() {
       <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
         {c.nightEyebrow}
       </p>
-      <h2 className="title-medium mt-1.5 text-[15px] text-heading">{c.nightTitle}</h2>
+      <h2 className="title-medium mt-1.5 text-sm text-heading">{c.nightTitle}</h2>
 
       {phase === "ask" && (
         <>
