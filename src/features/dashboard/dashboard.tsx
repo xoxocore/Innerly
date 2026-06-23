@@ -17,15 +17,10 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MultiAdd } from "@/components/innerly/multi-add";
 import { copy, fill } from "@/lib/copy";
-import { BLOG_POSTS, gradient } from "@/lib/content";
+import { BLOG_POSTS, gradient, type BlogPost } from "@/lib/content";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/app-context";
-import {
-  useReflections,
-  useTodayPlan,
-  useRemindersChecked,
-  type TodayItem,
-} from "@/state/use-data";
+import { useReflections, useTodayPlan, type TodayItem } from "@/state/use-data";
 
 const c = copy.dashboard;
 const DONE_GREEN = "#34d399"; // soft, powdery green for completed items
@@ -87,8 +82,6 @@ function FeatureCard({
 
 export function Dashboard() {
   const { profile, navigate, night } = useApp();
-  const [reflections] = useReflections();
-  const [checked, setChecked] = useRemindersChecked();
 
   const name = profile?.firstName ?? "friend";
   const dateLabel = new Date().toLocaleDateString("en-GB", {
@@ -97,13 +90,6 @@ export function Dashboard() {
     month: "long",
     year: "numeric",
   });
-
-  const reminders = reflections
-    .map((r) => r.differently?.trim())
-    .filter(Boolean)
-    .slice(-5) as string[];
-  const actingOn = reminders.filter((r) => checked[r]).length;
-  const latestPost = BLOG_POSTS[0];
 
   return (
     <div className="space-y-8">
@@ -137,85 +123,49 @@ export function Dashboard() {
         ))}
       </motion.div>
 
-      {/* Today + Reminders */}
+      {/* Today's plan + Before you rest */}
       <div className="grid gap-5 lg:grid-cols-2">
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
-
-        {/* Reminders to yourself */}
-        <Card className="border-border/60 bg-card/45 p-5 backdrop-blur-2xl">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            {c.remindersEyebrow}
-          </p>
-          <h2 className="title-medium mt-1.5 text-sm text-heading">{c.remindersTitle}</h2>
-          <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
-            {c.remindersDesc}
-          </p>
-
-          {reminders.length === 0 ? (
-            <Button variant="secondary" size="sm" className="mt-4" onClick={() => navigate("reflect")}>
-              {c.remindersCta}
-            </Button>
-          ) : (
-            <>
-              <ul className="mt-4 space-y-2">
-                {reminders.map((r) => (
-                  <li key={r}>
-                    <button
-                      onClick={() => setChecked((p) => ({ ...p, [r]: !p[r] }))}
-                      className="flex w-full items-start gap-3 text-left text-sm leading-relaxed"
-                    >
-                      <span
-                        className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors"
-                        style={{
-                          borderColor: checked[r] ? DONE_GREEN : "var(--border)",
-                          backgroundColor: checked[r] ? DONE_GREEN : "transparent",
-                        }}
-                      >
-                        {checked[r] && <Check className="h-3 w-3 text-white" />}
-                      </span>
-                      <span className={cn(checked[r] && "text-muted-foreground line-through")}>
-                        {r}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <p className="mt-3 text-[13px] text-muted-foreground">
-                {actingOn === reminders.length
-                  ? c.remindersAllClear
-                  : `${actingOn} of ${reminders.length} — ${c.remindersProgress}`}
-              </p>
-            </>
-          )}
-        </Card>
+        <NightCheckIn />
       </div>
 
-      {/* Secondary: nightly check-in + blog */}
+      {/* From the blog — two reads */}
       <div className="grid gap-5 lg:grid-cols-2">
-        <NightCheckIn />
-        <button onClick={() => navigate("blog")} className="block w-full text-left">
-          <Card className="h-full overflow-hidden border-border/50 bg-card/45 backdrop-blur-2xl transition-colors hover:bg-accent/60">
-            <div
-              className="h-20 w-full"
-              style={{ backgroundImage: gradient(latestPost.gradient) }}
-            />
-            <div className="p-5">
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                {c.blogEyebrow}
-              </p>
-              <h3 className="title-medium mt-1.5 text-sm text-heading">{latestPost.title}</h3>
-              <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-                {latestPost.excerpt}
-              </p>
-              <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-foreground">
-                {c.blogReadMore}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </span>
-            </div>
-          </Card>
-        </button>
+        {BLOG_POSTS.slice(0, 2).map((post) => (
+          <BlogCard
+            key={post.slug}
+            post={post}
+            onClick={() => navigate("blog", post.slug)}
+          />
+        ))}
       </div>
     </div>
+  );
+}
+
+function BlogCard({ post, onClick }: { post: BlogPost; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="block w-full text-left">
+      <Card className="group h-full overflow-hidden border-border/50 bg-card/45 backdrop-blur-2xl transition-colors hover:bg-accent/60">
+        <div
+          className="h-20 w-full"
+          style={{ backgroundImage: gradient(post.gradient) }}
+        />
+        <div className="p-5">
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            {post.category}
+          </p>
+          <h3 className="title-medium mt-1.5 text-sm text-heading">{post.title}</h3>
+          <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+            {post.excerpt}
+          </p>
+          <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-foreground">
+            {c.blogReadMore}
+            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </div>
+      </Card>
+    </button>
   );
 }
 
