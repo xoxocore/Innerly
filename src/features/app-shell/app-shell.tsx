@@ -15,7 +15,8 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
-import { RippleMark } from "@/components/innerly/ripple-mark";
+import { Avatar } from "@/components/innerly/avatar";
+import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useApp, type View } from "@/state/app-context";
@@ -37,16 +38,13 @@ const LIBRARY: NavItem[] = [
   { view: "settings", label: copy.nav.settings, icon: Settings },
 ];
 
+// The person first, then the mark — you before the product.
 function Brand() {
+  const { profile } = useApp();
   return (
-    <div className="flex items-center gap-3">
-      <RippleMark className="h-9 w-9" />
-      <div className="leading-tight">
-        <p className="text-base font-medium tracking-tight text-heading">
-          {copy.brand.appName}
-        </p>
-        <p className="text-[11px] text-muted-foreground">{copy.brand.tagline}</p>
-      </div>
+    <div className="flex items-center gap-2.5">
+      <Avatar name={profile?.firstName} className="h-8 w-8" />
+      <Wordmark className="text-[22px]" />
     </div>
   );
 }

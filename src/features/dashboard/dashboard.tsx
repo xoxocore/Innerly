@@ -44,10 +44,11 @@ function FeatureCard({
   onClick: () => void;
 }) {
   const Icon = feature.icon;
-  // soft powder-pink bloom (silver moonlight in night mode)
+  // A soft green bloom, keyed to the logo, so the one moment of colour on the
+  // page belongs to the brand (cool moonlight in night mode).
   const bloom = night
-    ? "radial-gradient(60% 58% at 50% 0%, rgba(214,222,245,0.5), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(194,206,234,0.38), transparent 74%)"
-    : "radial-gradient(60% 58% at 50% 0%, rgba(255,203,222,0.55), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(255,191,214,0.4), transparent 74%)";
+    ? "radial-gradient(60% 58% at 50% 0%, rgba(150,205,160,0.34), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(130,190,145,0.26), transparent 74%)"
+    : "radial-gradient(60% 58% at 50% 0%, rgba(150,220,165,0.52), transparent 72%), radial-gradient(60% 52% at 50% 100%, rgba(176,230,186,0.4), transparent 74%)";
 
   return (
     <motion.button
@@ -56,23 +57,23 @@ function FeatureCard({
       whileHover={{ y: -4 }}
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 280, damping: 24 }}
-      className="hero-card relative isolate rounded-2xl text-left"
+      className="hero-card relative isolate h-full rounded-2xl text-left"
     >
       {/* powder-pink bloom behind + peeking around the glass (CSS :hover) */}
       <span
         aria-hidden
-        className="hero-bloom pointer-events-none absolute -inset-6 -z-10 rounded-[2.5rem] blur-2xl"
+        className="hero-bloom pointer-events-none absolute -inset-7 -z-10 rounded-[2.5rem] blur-2xl"
         style={{ background: bloom }}
       />
       {/* liquid glass surface — soft glow halo on hover */}
-      <span className="hero-surface relative block overflow-hidden rounded-2xl border border-border/50 bg-card/45 p-4 backdrop-blur-2xl">
+      <span className="hero-surface relative block h-full overflow-hidden rounded-2xl border border-border/50 bg-card/45 p-5 backdrop-blur-2xl">
         <span className="hero-icon grid h-9 w-9 place-items-center rounded-full bg-secondary/80 text-foreground">
           <Icon className="h-[18px] w-[18px]" />
         </span>
-        <h3 className="title-strong mt-3 text-sm leading-snug text-heading">
+        <h3 className="title-strong mt-4 text-[13.5px] leading-snug text-heading">
           {feature.title}
         </h3>
-        <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+        <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
           {feature.desc}
         </p>
       </span>
@@ -92,16 +93,16 @@ export function Dashboard() {
   });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-12">
       {/* Hero */}
       <header>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           {c.breadcrumb}
         </p>
-        <h1 className="title-regular mt-2.5 max-w-3xl text-[2rem] leading-[1.12] tracking-tight text-heading sm:text-[2.5rem]">
+        <h1 className="title-regular mt-3 max-w-2xl text-[1.75rem] leading-[1.12] tracking-tight text-heading sm:text-[2.15rem]">
           {fill(c.greeting, { name })}
         </h1>
-        <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+        <p className="mt-3 inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <CalendarDays className="h-3.5 w-3.5" /> {dateLabel}
         </p>
       </header>
@@ -111,7 +112,7 @@ export function Dashboard() {
         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07 } } }}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-2 gap-5 pt-2 md:grid-cols-4"
+        className="grid grid-cols-2 gap-4 pt-1 sm:gap-6 md:grid-cols-4"
       >
         {FEATURES.map((f) => (
           <FeatureCard
@@ -124,13 +125,13 @@ export function Dashboard() {
       </motion.div>
 
       {/* Today's plan + Before you rest */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
         <NightCheckIn />
       </div>
 
       {/* From the blog — two reads */}
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {BLOG_POSTS.slice(0, 2).map((post) => (
           <BlogCard
             key={post.slug}
@@ -256,7 +257,7 @@ function TodoList({
             whileHover="spin"
             initial="rest"
             animate="rest"
-            className="mx-auto flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-[#be185d]"
+            className="mx-auto flex items-center gap-1.5 text-sm font-medium text-foreground transition-colors hover:text-[var(--brand-green-ink)]"
           >
             <motion.span
               variants={{ rest: { rotate: 0 }, spin: { rotate: 360 } }}

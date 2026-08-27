@@ -161,11 +161,11 @@ h4 {
 }
 .hero-card:hover .hero-surface {
   box-shadow: 0 14px 36px -20px rgba(15, 23, 42, 0.16),
-    0 0 30px -8px rgba(255, 176, 205, 0.4);
+    0 0 30px -8px rgba(76, 175, 80, 0.35);
 }
 .hero-card:hover .hero-icon {
-  background-color: #fbe0ea;
-  color: #be185d;
+  background-color: #e4f4e5;
+  color: #2e7d32;
 }
 .dark .hero-surface {
   box-shadow: 0 8px 30px -16px rgba(0, 0, 0, 0.5);

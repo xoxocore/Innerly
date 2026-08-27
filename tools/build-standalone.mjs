@@ -34,10 +34,11 @@ if (tw.status !== 0) {
 let css = await readFile(cssOut, "utf8");
 await rm(tmp, { recursive: true, force: true });
 
-// Inter web font + the --font-inter variable the design system expects.
+// Inter for the interface, Instrument Serif for the wordmark, plus the CSS
+// variables the design system expects (next/font supplies these in the app).
 const fontImport =
-  "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');";
-css = `${fontImport}\n:root{--font-inter:'Inter';}\n${css}`;
+  "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif&display=swap');";
+css = `${fontImport}\n:root{--font-inter:'Inter';--font-display:'Instrument Serif';}\n${css}`;
 
 // 2) Bundle the React app into a single IIFE.
 const result = await build({
