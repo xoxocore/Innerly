@@ -1,6 +1,7 @@
 "use client";
 
 import { createBrowserClient } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Read once, so a missing variable fails at the first call with a sentence
 // that says what to do — rather than surfacing later as an opaque "Invalid API
@@ -18,9 +19,13 @@ function required(name: string, value: string | undefined): string {
 // One client for the whole browser session. Creating a second would mean two
 // copies of the auth state, and whichever refreshed the token last would
 // silently invalidate the other.
-let browserClient: ReturnType<typeof createBrowserClient> | null = null;
+//
+// Typed as SupabaseClient rather than inferred: without a generated Database
+// generic the inferred return is `any`, which would quietly switch off type
+// checking on every query written against it.
+let browserClient: SupabaseClient | null = null;
 
-export function supabase() {
+export function supabase(): SupabaseClient {
   if (!browserClient) {
     browserClient = createBrowserClient(
       required("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL),

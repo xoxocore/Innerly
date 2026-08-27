@@ -48,7 +48,19 @@ const result = await build({
   jsx: "automatic",
   minify: true,
   write: false,
-  define: { "process.env.NODE_ENV": '"production"' },
+  // Next replaces NEXT_PUBLIC_* textually at build time; esbuild does not, so
+  // without this the bundle reaches for `process` in the browser and dies on
+  // load. Empty by default, which exercises the no-keys path; pass real values
+  // in the environment to build a preview wired to Supabase.
+  define: {
+    "process.env.NODE_ENV": '"production"',
+    "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""
+    ),
+    "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY": JSON.stringify(
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""
+    ),
+  },
   alias: { "@": resolve(projectRoot, "src") },
   loader: { ".tsx": "tsx", ".ts": "ts" },
   target: ["es2020"],
