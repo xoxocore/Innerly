@@ -154,6 +154,16 @@ export const copy = {
     breadcrumb: "Innerly / History",
     title: "History",
     subtitle: "Look back, and notice how you've moved.",
+    searchPlaceholder: "Search your history",
+    jumpToDate: "Jump to a date",
+    filterAll: "All",
+    filterReflections: "Reflections",
+    filterManifestations: "Manifestations",
+    filterDone: "Done",
+    clearFilters: "Clear filters",
+    noMatch: "Nothing here. Try another date or search.",
+    empty:
+      "Nothing to look back on yet. Your reflections, manifestations and finished days gather here.",
   },
   settings: {
     notificationsTitle: "Notifications",
