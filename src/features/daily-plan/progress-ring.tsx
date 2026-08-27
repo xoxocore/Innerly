@@ -3,13 +3,13 @@
 import { motion } from "framer-motion";
 import { Check } from "lucide-react";
 
-const SIZE = 92;
-const STROKE = 9;
+const SIZE = 46;
+const STROKE = 5;
 const R = (SIZE - STROKE) / 2;
 const C = 2 * Math.PI * R;
 
-// The day's one bold mark: a single ring carrying the only gradient on the
-// screen, so the eye lands on progress before anything else.
+// The day's one bold mark: a small ring carrying the only gradient on the
+// screen, sized to sit beside the date rather than dominate it.
 export function ProgressRing({
   done,
   total,
@@ -30,8 +30,8 @@ export function ProgressRing({
       <svg width={SIZE} height={SIZE} className="-rotate-90">
         <defs>
           <linearGradient id="innerly-ring" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#ec4899" />
-            <stop offset="100%" stopColor="#8b5cf6" />
+            <stop offset="0%" stopColor="#007AFF" />
+            <stop offset="100%" stopColor="#AF52DE" />
           </linearGradient>
         </defs>
         <circle
@@ -63,18 +63,14 @@ export function ProgressRing({
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ type: "spring", stiffness: 400, damping: 18 }}
-            className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#ec4899] to-[#8b5cf6]"
+            className="grid h-[22px] w-[22px] place-items-center rounded-full bg-[#34C759]"
           >
-            <Check className="h-[18px] w-[18px] text-white" />
+            <Check className="h-3 w-3 text-white" strokeWidth={3.5} />
           </motion.span>
         ) : (
-          <span className="text-center leading-none">
-            <span className="block text-[22px] font-medium tabular-nums text-heading">
-              {done}
-            </span>
-            <span className="mt-0.5 block text-[11px] tabular-nums text-muted-foreground">
-              of {total}
-            </span>
+          <span className="text-[12px] font-medium tabular-nums leading-none text-heading">
+            {done}
+            <span className="text-muted-foreground">/{total}</span>
           </span>
         )}
       </div>

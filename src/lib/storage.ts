@@ -33,6 +33,20 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
+// `storage` events only fire in OTHER tabs, so a same-tab write is invisible
+// to anything reading the keyspace directly (the calendar counting each day's
+// tasks, say). This bus closes that gap. Notification is deferred to a
+// microtask because writes happen inside React state updaters, and waking
+// other components mid-update would be an update-during-render.
+const listeners = new Set<() => void>();
+
+export function subscribeStorage(fn: () => void) {
+  listeners.add(fn);
+  return () => {
+    listeners.delete(fn);
+  };
+}
+
 function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   try {
@@ -40,6 +54,9 @@ function write<T>(key: string, value: T) {
   } catch {
     /* ignore quota / private-mode errors */
   }
+  queueMicrotask(() => {
+    for (const fn of listeners) fn();
+  });
 }
 
 // SSR-safe persisted state. Reads after mount to avoid hydration mismatch.

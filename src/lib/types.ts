@@ -88,8 +88,11 @@ export const HORIZON_SHORT: Record<Horizon, string> = {
 export function horizonDate(base: Date, h: Horizon): Date {
   const d = new Date(base);
   switch (h) {
+    // "Today" means the day you are living, not the day the goal was made.
+    // Anchoring it to `base` stranded a goal's Today actions on its creation
+    // date, which then disagreed with the Dashboard's Today list.
     case "today":
-      return d;
+      return new Date();
     case "thisWeek":
       d.setDate(d.getDate() + 7);
       return d;
@@ -153,22 +156,28 @@ export function normalizeVisionYear(raw: unknown, index = 0): VisionYear {
   };
 }
 
-// Vivid, friendly goal palette. `dot`/`bar` are solid; `soft` is the pill fill.
+// Apple's system colours, the palette macOS Calendar tints its events with.
+// `dot` is the vivid mark; `ink` is the darkened variant that stays readable
+// as text on `soft`, since several of these (orange especially) fail contrast
+// at full saturation. In night mode `dot` sits on `softDark` and reads fine.
+// The KEYS are deliberately unchanged from the previous palette so goals
+// already saved keep the colour they were given.
 export type GoalColor = {
   key: string;
   dot: string;
+  ink: string;
   soft: string;
   softDark: string;
 };
 
 export const GOAL_COLORS: GoalColor[] = [
-  { key: "blue", dot: "#3b82f6", soft: "#dbeafe", softDark: "#1e3a5f" },
-  { key: "emerald", dot: "#10b981", soft: "#d1fae5", softDark: "#0f3d2e" },
-  { key: "pink", dot: "#ec4899", soft: "#fce7f3", softDark: "#4a1d36" },
-  { key: "amber", dot: "#f59e0b", soft: "#fef3c7", softDark: "#43320b" },
-  { key: "violet", dot: "#8b5cf6", soft: "#ede9fe", softDark: "#332155" },
-  { key: "rose", dot: "#f43f5e", soft: "#ffe4e6", softDark: "#4a1622" },
-  { key: "teal", dot: "#14b8a6", soft: "#ccfbf1", softDark: "#0c3b37" },
+  { key: "blue", dot: "#007AFF", ink: "#0060DF", soft: "#E8F1FE", softDark: "#12233A" },
+  { key: "emerald", dot: "#34C759", ink: "#1E8E3E", soft: "#E6F7EC", softDark: "#12301D" },
+  { key: "pink", dot: "#FF2D55", ink: "#D81B50", soft: "#FFE9EF", softDark: "#3A1421" },
+  { key: "amber", dot: "#FF9500", ink: "#B96A0E", soft: "#FFF1E0", softDark: "#3A2610" },
+  { key: "violet", dot: "#AF52DE", ink: "#8E3EBD", soft: "#F6EAFC", softDark: "#2C1638" },
+  { key: "rose", dot: "#FF3B30", ink: "#D32F2F", soft: "#FFEBE9", softDark: "#3A1714" },
+  { key: "teal", dot: "#5AC8FA", ink: "#0A7EA4", soft: "#E4F5FE", softDark: "#0F2A38" },
 ];
 
 export function goalColor(key: string): GoalColor {

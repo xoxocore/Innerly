@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo } from "react";
 import { KEYS, usePersistentState } from "@/lib/storage";
-import type { Manifestation, Reflection, Task } from "@/lib/types";
+import { useTaskDays } from "@/state/use-task-days";
+import type { Manifestation, Reflection } from "@/lib/types";
 import type { View } from "@/state/app-context";
 import {
   useGoals,
@@ -71,74 +72,6 @@ export function relativeAge(iso: string, now = new Date()): string {
   const months = Math.floor(days / 30);
   if (months < 12) return months + "mo";
   return Math.floor(days / 365) + "y";
-}
-
-/* ------------------------------------------------------------ task days */
-
-export type TaskDay = { day: string; tasks: Task[] };
-
-const NO_TASK_DAYS: TaskDay[] = [];
-let taskSig = " ";
-let taskCache: TaskDay[] = NO_TASK_DAYS;
-
-// Each day's ad-hoc tasks live under their own `innerly:tasks:<day>` key, so
-// the whole history is recovered by sweeping the keyspace. The result is
-// memoised against a signature of the raw values: `useSyncExternalStore`
-// calls this on every render and demands a stable reference when unchanged.
-function readTaskDays(): TaskDay[] {
-  if (typeof window === "undefined") return NO_TASK_DAYS;
-
-  const raw: [string, string][] = [];
-  try {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      if (!k || !k.startsWith(KEYS.tasksPrefix)) continue;
-      raw.push([k, window.localStorage.getItem(k) ?? ""]);
-    }
-  } catch {
-    return taskCache;
-  }
-  raw.sort((a, b) => a[0].localeCompare(b[0]));
-
-  const sig = raw.map(([k, v]) => k + "=" + v).join("");
-  if (sig === taskSig) return taskCache;
-
-  const days: TaskDay[] = [];
-  for (const [k, v] of raw) {
-    const day = k.slice(KEYS.tasksPrefix.length);
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
-    try {
-      const parsed = JSON.parse(v);
-      if (!Array.isArray(parsed)) continue;
-      const tasks = parsed.filter(
-        (t): t is Task =>
-          !!t &&
-          typeof t === "object" &&
-          typeof t.title === "string" &&
-          !!t.title.trim()
-      );
-      if (tasks.length) days.push({ day, tasks });
-    } catch {
-      /* skip an unreadable day rather than losing the whole sweep */
-    }
-  }
-
-  taskSig = sig;
-  taskCache = days;
-  return days;
-}
-
-function subscribeTaskDays(onChange: () => void) {
-  window.addEventListener("storage", onChange);
-  window.addEventListener("focus", onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener("focus", onChange);
-  };
-}
-
-function useTaskDays(): TaskDay[] {
-  return useSyncExternalStore(subscribeTaskDays, readTaskDays, () => NO_TASK_DAYS);
 }
 
 /* ----------------------------------------------------------- activities */
