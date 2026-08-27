@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { dayDate } from "./use-history";
@@ -10,7 +10,6 @@ const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const keyOf = (y: number, m: number, d: number) =>
   `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 
-// A month is addressable as a single number so range clamping stays trivial.
 const monthIndex = (y: number, m: number) => y * 12 + m;
 
 export function MiniCalendar({
@@ -34,24 +33,11 @@ export function MiniCalendar({
     return { year: d.getFullYear(), month: d.getMonth() };
   });
 
-  // Paging stops at the edges of what actually exists, so the arrows never
-  // walk off into empty months.
-  const { min, max } = useMemo(() => {
-    const months = [...days].map((k) => {
-      const d = dayDate(k);
-      return monthIndex(d.getFullYear(), d.getMonth());
-    });
-    const nowIdx = monthIndex(today.getFullYear(), today.getMonth());
-    return {
-      min: months.length ? Math.min(...months, nowIdx) : nowIdx,
-      max: nowIdx,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [days]);
-
-  const current = monthIndex(view.year, view.month);
-  const canPrev = current > min;
-  const canNext = current < max;
+  // Any past day is selectable — an empty one answers "nothing on this day"
+  // rather than being unreachable. Only the future is closed off.
+  const canNext =
+    monthIndex(view.year, view.month) <
+    monthIndex(today.getFullYear(), today.getMonth());
 
   const step = (delta: number) =>
     setView(({ year, month }) => {
@@ -78,9 +64,8 @@ export function MiniCalendar({
         <div className="flex items-center gap-0.5">
           <button
             onClick={() => step(-1)}
-            disabled={!canPrev}
             aria-label="Previous month"
-            className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-25"
+            className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -112,28 +97,28 @@ export function MiniCalendar({
           const has = days.has(key);
           const isSelected = selected === key;
           const isToday = key === todayKey;
+          const isFuture = key > todayKey;
 
           return (
             <div key={key} className="grid place-items-center py-0.5">
               <button
                 onClick={() => onSelect(isSelected ? null : key)}
-                disabled={!has}
+                disabled={isFuture}
                 aria-pressed={isSelected}
-                aria-label={
-                  has
-                    ? `${dayDate(key).toLocaleDateString("en-US", {
-                        day: "numeric",
-                        month: "long",
-                      })} — show entries`
-                    : undefined
-                }
+                aria-label={dayDate(key).toLocaleDateString("en-US", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
                 className={cn(
                   "relative grid h-8 w-8 place-items-center rounded-full text-[13px] tabular-nums transition-colors",
                   isSelected
                     ? "bg-foreground font-medium text-background"
-                    : has
-                      ? "font-medium text-foreground hover:bg-accent"
-                      : "cursor-default text-muted-foreground/35",
+                    : isFuture
+                      ? "cursor-default text-muted-foreground/25"
+                      : has
+                        ? "font-medium text-foreground hover:bg-accent"
+                        : "text-muted-foreground/60 hover:bg-accent hover:text-foreground",
                   !isSelected && isToday && "ring-1 ring-border"
                 )}
               >

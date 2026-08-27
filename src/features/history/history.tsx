@@ -4,11 +4,15 @@ import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CalendarDays,
+  CalendarPlus,
   Check,
-  ChevronDown,
+  ChevronRight,
+  ImagePlus,
   NotebookPen,
   Search,
   Sparkles,
+  Target,
+  Trash2,
   X,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -18,12 +22,16 @@ import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { goalColor } from "@/lib/types";
 import { useApp } from "@/state/app-context";
+import { EntryReport } from "./entry-report";
 import { MiniCalendar } from "./mini-calendar";
 import {
   dayLabel,
   dayStamp,
   groupByDay,
+  relativeAge,
+  timeOf,
   useHistory,
+  type ActivityType,
   type HistoryEntry,
   type HistoryKind,
 } from "./use-history";
@@ -36,24 +44,28 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: c.filterAll },
   { key: "reflection", label: c.filterReflections },
   { key: "manifestation", label: c.filterManifestations },
-  { key: "done", label: c.filterDone },
+  { key: "activity", label: c.filterActivities },
 ];
 
-// Each kind borrows a hue from the goal palette so History reads as part of
-// the same system rather than a screen with its own colours.
-const KIND = {
+// Kinds borrow their hue from the goal palette so History reads as part of the
+// same system rather than a screen with its own colours.
+const RECORD = {
   reflection: { label: "Reflection", icon: NotebookPen, color: "rose" },
   manifestation: { label: "Manifestation", icon: Sparkles, color: "violet" },
-  done: { label: "Completed", icon: Check, color: "emerald" },
 } as const;
 
-const timeOf = (iso: string) =>
-  new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+const ACTIVITY: Record<
+  ActivityType,
+  { icon: typeof Target; color: string }
+> = {
+  vision: { icon: ImagePlus, color: "pink" },
+  goal: { icon: Target, color: "amber" },
+  plan: { icon: CalendarPlus, color: "blue" },
+  completed: { icon: Check, color: "emerald" },
+};
 
 /* ------------------------------------------------------------- one entry */
 
-// Collapsed, an entry is a single scannable line; the writing itself is one
-// click away. That is the whole point of the screen: an index, not a wall.
 function summarise(e: HistoryEntry): { title: string; preview: string } {
   if (e.kind === "reflection") {
     const { moments, differently } = e.reflection;
@@ -70,192 +82,133 @@ function summarise(e: HistoryEntry): { title: string; preview: string } {
       preview: m.goals[0] || m.affirmations[0] || m.gratitude[0] || "Named and aligned.",
     };
   }
-  const n = e.tasks.length;
+  const a = e.activity;
   return {
-    title: n > 1 ? `${n} things done` : "1 thing done",
-    preview: e.tasks.map((t) => t.title).join(" · "),
+    title: a.text,
+    preview: a.detail ?? (a.items ?? []).join(" · "),
   };
 }
 
-function MicroLabel({ children }: { children: React.ReactNode }) {
+function DeleteButton({ onClick, label }: { onClick: () => void; label: string }) {
   return (
-    <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-      {children}
-    </p>
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      aria-label={label}
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground opacity-100 transition-all hover:bg-accent hover:text-destructive lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
+    >
+      <Trash2 className="h-[15px] w-[15px]" />
+    </button>
   );
 }
 
-function Detail({ entry }: { entry: HistoryEntry }) {
-  if (entry.kind === "reflection") {
-    const { moments, differently, review } = entry.reflection;
+// The avatar is the activity's own image where it has one — an added vision
+// shows the picture you added, the way a notification feed shows a thumbnail.
+function EntryAvatar({ entry }: { entry: HistoryEntry }) {
+  const { night } = useApp();
+
+  if (entry.kind === "activity") {
+    const a = entry.activity;
+    const meta = ACTIVITY[a.type];
+    const color = goalColor(a.accent ?? meta.color);
+    const Icon = meta.icon;
+
+    if (a.image) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={a.image}
+          alt=""
+          className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-border"
+        />
+      );
+    }
+    if (a.gradient) {
+      return (
+        <span
+          className="h-9 w-9 shrink-0 rounded-full ring-1 ring-border"
+          style={{
+            backgroundImage: `linear-gradient(135deg, ${a.gradient[0]}, ${a.gradient[1]})`,
+          }}
+        />
+      );
+    }
     return (
-      <div className="space-y-5">
-        {moments.map((m, i) => (
-          <div key={i} className="space-y-1.5">
-            {moments.length > 1 && <MicroLabel>Moment {i + 1}</MicroLabel>}
-            <p className="text-[15px] leading-relaxed text-foreground">{m.text}</p>
-            {m.why && (
-              <p className="text-[15px] leading-relaxed text-muted-foreground">
-                Because {m.why}
-              </p>
-            )}
-            {m.next && m.next.length > 0 && (
-              <ul className="space-y-1 pt-0.5">
-                {m.next.filter(Boolean).map((n, j) => (
-                  <li
-                    key={j}
-                    className="flex gap-2 text-[15px] leading-relaxed text-foreground"
-                  >
-                    <span aria-hidden className="text-muted-foreground">
-                      &rarr;
-                    </span>
-                    <span>{n}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-
-        {differently && (
-          <div className="space-y-1.5">
-            <MicroLabel>Next time</MicroLabel>
-            <p className="text-[15px] leading-relaxed text-foreground">{differently}</p>
-          </div>
-        )}
-
-        {review && (
-          <div className="space-y-1.5">
-            <MicroLabel>Pause &amp; review</MicroLabel>
-            <div
-              className="prose-innerly text-[15px] leading-relaxed text-foreground/90"
-              dangerouslySetInnerHTML={{ __html: review }}
-            />
-          </div>
-        )}
-      </div>
+      <span
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+        style={{ backgroundColor: night ? color.softDark : color.soft }}
+      >
+        <Icon className="h-[15px] w-[15px]" style={{ color: color.dot }} />
+      </span>
     );
   }
 
-  if (entry.kind === "manifestation") {
-    const m = entry.manifestation;
-    const groups: [string, string[]][] = [
-      ["Goals", m.goals],
-      ["Affirmations", m.affirmations],
-      ["Gratitude", m.gratitude],
-      ["Released", m.releases],
-    ];
-    return (
-      <div className="space-y-5">
-        {groups
-          .filter(([, list]) => list.filter(Boolean).length > 0)
-          .map(([label, list]) => (
-            <div key={label} className="space-y-1.5">
-              <MicroLabel>{label}</MicroLabel>
-              <ul className="space-y-1">
-                {list.filter(Boolean).map((item, i) => (
-                  <li
-                    key={i}
-                    className="text-[15px] leading-relaxed text-foreground"
-                  >
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-      </div>
-    );
-  }
-
+  const meta = RECORD[entry.kind];
+  const color = goalColor(meta.color);
+  const Icon = meta.icon;
   return (
-    <ul className="space-y-2">
-      {entry.tasks.map((t) => (
-        <li key={t.id} className="flex items-start gap-2.5">
-          <span className="mt-[3px] grid h-4 w-4 shrink-0 place-items-center rounded-full bg-secondary">
-            <Check className="h-2.5 w-2.5 text-muted-foreground" />
-          </span>
-          <span className="text-[15px] leading-relaxed text-foreground">
-            {t.title}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <span
+      className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
+      style={{ backgroundColor: night ? color.softDark : color.soft }}
+    >
+      <Icon className="h-[15px] w-[15px]" style={{ color: color.dot }} />
+    </span>
   );
 }
 
 function EntryRow({
   entry,
-  open,
-  onToggle,
+  onOpen,
+  onDelete,
 }: {
   entry: HistoryEntry;
-  open: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
+  onDelete: () => void;
 }) {
-  const { night } = useApp();
-  const meta = KIND[entry.kind];
-  const color = goalColor(meta.color);
-  const Icon = meta.icon;
   const { title, preview } = summarise(entry);
+  const isActivity = entry.kind === "activity";
 
   return (
-    <div>
+    <div className="group flex items-center gap-3 pr-2 transition-colors hover:bg-accent/40">
       <button
-        onClick={onToggle}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3.5 px-4 py-3.5 text-left transition-colors hover:bg-accent/40 sm:px-5"
+        onClick={onOpen}
+        className="flex min-w-0 flex-1 items-center gap-3.5 py-3 pl-4 text-left sm:pl-5"
       >
-        <span
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-xl"
-          style={{ backgroundColor: night ? color.softDark : color.soft }}
-        >
-          <Icon className="h-[15px] w-[15px]" style={{ color: color.dot }} />
-        </span>
+        <EntryAvatar entry={entry} />
 
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] font-medium leading-snug text-heading">
-            {title}
-          </span>
           <span
             className={cn(
-              "block text-[13px] leading-snug text-muted-foreground",
-              open ? "line-clamp-none" : "truncate"
+              "block text-[15px] leading-snug text-heading",
+              isActivity ? "font-normal" : "truncate font-medium"
             )}
           >
-            {preview}
+            {title}
           </span>
+          {preview && (
+            <span className="block truncate text-[13px] leading-snug text-muted-foreground">
+              {preview}
+            </span>
+          )}
+          {isActivity && (
+            <span className="mt-0.5 inline-flex items-center gap-1 text-[12px] font-medium text-muted-foreground">
+              {entry.activity.targetLabel}
+              <ChevronRight className="h-3 w-3" />
+            </span>
+          )}
         </span>
 
-        {entry.kind !== "done" && (
-          <span className="hidden shrink-0 text-[12px] tabular-nums text-muted-foreground sm:block">
-            {timeOf(entry.at)}
-          </span>
-        )}
-
-        <ChevronDown
-          className={cn(
-            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
-            open && "rotate-180"
-          )}
-        />
+        <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
+          {isActivity ? relativeAge(entry.at) : timeOf(entry.at)}
+        </span>
       </button>
 
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="border-t border-border/50 px-4 py-4 pl-[62px] sm:px-5 sm:pl-[68px]">
-              <Detail entry={entry} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <DeleteButton
+        onClick={onDelete}
+        label={isActivity ? c.dismiss : c.delete}
+      />
     </div>
   );
 }
@@ -264,13 +217,13 @@ function EntryRow({
 
 export function History() {
   const { navigate } = useApp();
-  const { entries, daysWithEntries } = useHistory();
+  const { entries, daysWithEntries, remove } = useHistory();
 
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [day, setDay] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const [openId, setOpenId] = useState<string | null>(null);
 
   // Day + search narrow the set; the segmented control then counts within it,
   // so the numbers on the tabs always describe what is actually on screen.
@@ -282,7 +235,7 @@ export function History() {
   }, [entries, day, query]);
 
   const counts = useMemo(() => {
-    const t = { all: scoped.length, reflection: 0, manifestation: 0, done: 0 };
+    const t = { all: scoped.length, reflection: 0, manifestation: 0, activity: 0 };
     for (const e of scoped) t[e.kind] += 1;
     return t;
   }, [scoped]);
@@ -293,13 +246,10 @@ export function History() {
   );
 
   const grouped = useMemo(() => groupByDay(visible), [visible]);
-
-  // Landing on a single day means you came to read it, so a short day opens
-  // itself. Derived rather than an effect, and any click still wins.
-  const autoOpen = day !== null && visible.length <= 3;
-  const isOpen = (id: string) => overrides[id] ?? autoOpen;
-  const toggle = (id: string) =>
-    setOverrides((prev) => ({ ...prev, [id]: !(prev[id] ?? autoOpen) }));
+  const open = useMemo(
+    () => entries.find((e) => e.id === openId) ?? null,
+    [entries, openId]
+  );
 
   const filtering = day !== null || query.trim() !== "" || filter !== "all";
   const clearAll = () => {
@@ -313,8 +263,18 @@ export function History() {
     setPickerOpen(false);
   };
 
-  // Nothing has ever been recorded — a different situation from a filter that
-  // happens to match nothing, and it gets a different answer.
+  // An activity points at work that lives on another screen, so opening one
+  // goes there. A reflection or manifestation opens as its own report.
+  const openEntry = (entry: HistoryEntry) => {
+    if (entry.kind === "activity") navigate(entry.activity.target);
+    else setOpenId(entry.id);
+  };
+
+  const deleteEntry = (entry: HistoryEntry) => {
+    remove(entry);
+    setOpenId((cur) => (cur === entry.id ? null : cur));
+  };
+
   if (entries.length === 0) {
     return (
       <div>
@@ -334,6 +294,9 @@ export function History() {
   const calendar = (
     <MiniCalendar days={daysWithEntries} selected={day} onSelect={pickDay} />
   );
+
+  // A chosen day with nothing on it is a real answer, not an error.
+  const emptyDay = day !== null && scoped.length === 0;
 
   return (
     <div>
@@ -405,7 +368,6 @@ export function History() {
           <div className="mt-3 flex gap-1 overflow-x-auto rounded-full bg-secondary p-1">
             {FILTERS.map((f) => {
               const active = filter === f.key;
-              const n = counts[f.key];
               return (
                 <button
                   key={f.key}
@@ -425,7 +387,9 @@ export function History() {
                   )}
                   <span className={cn("relative", active && "font-medium")}>
                     {f.label}
-                    <span className="ml-1.5 tabular-nums text-muted-foreground">{n}</span>
+                    <span className="ml-1.5 tabular-nums text-muted-foreground">
+                      {counts[f.key]}
+                    </span>
                   </span>
                 </button>
               );
@@ -441,7 +405,7 @@ export function History() {
                   {dayStamp(day)}
                   <button
                     onClick={() => setDay(null)}
-                    aria-label="Clear date"
+                    aria-label={c.clearDate}
                     className="text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -460,9 +424,14 @@ export function History() {
           {/* timeline */}
           {grouped.length === 0 ? (
             <Card className="mt-5 p-10 text-center">
-              <p className="text-[15px] leading-relaxed text-muted-foreground">
-                {c.noMatch}
+              <p className="text-[15px] font-medium text-heading">
+                {emptyDay ? c.noEntriesOnDay : c.noMatch}
               </p>
+              {emptyDay && (
+                <p className="mx-auto mt-2 max-w-xs text-[14px] leading-relaxed text-muted-foreground">
+                  {c.noEntriesOnDayHint}
+                </p>
+              )}
               <Button variant="secondary" className="mt-5" onClick={clearAll}>
                 {c.clearFilters}
               </Button>
@@ -484,8 +453,8 @@ export function History() {
                       <EntryRow
                         key={e.id}
                         entry={e}
-                        open={isOpen(e.id)}
-                        onToggle={() => toggle(e.id)}
+                        onOpen={() => openEntry(e)}
+                        onDelete={() => deleteEntry(e)}
                       />
                     ))}
                   </Card>
@@ -508,6 +477,16 @@ export function History() {
           </div>
         </aside>
       </div>
+
+      <AnimatePresence>
+        {open && (
+          <EntryReport
+            entry={open}
+            onClose={() => setOpenId(null)}
+            onDelete={() => deleteEntry(open)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -18,6 +18,9 @@ export const KEYS = {
   remindersChecked: "innerly:reminders-checked",
   welcome: "innerly:welcome",
   tasksPrefix: "innerly:tasks:",
+  // Activities are derived from your data, so "deleting" one hides it here
+  // rather than destroying the vision, goal or task behind it.
+  activitiesHidden: "innerly:activities-hidden",
 } as const;
 
 function read<T>(key: string, fallback: T): T {
