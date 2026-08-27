@@ -1,4 +1,4 @@
--- Innerly, phase 2: accounts, content, billing.
+-- Innerly, phase 2: accounts and content.
 --
 -- Run this once in the Supabase SQL editor (or `supabase db push`).
 --
@@ -14,17 +14,13 @@ create extension if not exists "pgcrypto";
 /* ------------------------------------------------------------------ people */
 
 -- One row per account, created automatically on signup (trigger at the end).
--- `plan` drives the freemium gates; it is written by the Stripe webhook and by
--- nothing else, so a client cannot promote itself.
+-- The app is free, so there is no plan or billing here. Adding a paid tier
+-- later is one `alter table ... add column`, not a rewrite.
 create table public.profiles (
   id            uuid primary key references auth.users on delete cascade,
   first_name    text not null default '',
   night_mode    boolean not null default false,
   prefs         jsonb not null default '{"notifications":false,"dailyReminder":true,"weeklyReport":false}'::jsonb,
-  plan          text not null default 'free' check (plan in ('free', 'pro')),
-  stripe_customer_id     text unique,
-  stripe_subscription_id text unique,
-  plan_renews_at         timestamptz,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -173,8 +169,7 @@ alter table public.usage_days        enable row level security;
 alter table public.hidden_activities enable row level security;
 alter table public.posts             enable row level security;
 
--- Your own row, and only ever your own. `plan` and the Stripe columns are not
--- writable from the client — see the guard trigger below.
+-- Your own row, and only ever your own.
 create policy "read own profile"   on public.profiles for select using (auth.uid() = id);
 create policy "update own profile" on public.profiles for update using (auth.uid() = id) with check (auth.uid() = id);
 
@@ -210,27 +205,13 @@ create policy "admins write posts" on public.posts
 
 /* ------------------------------------------------------------- guardrails */
 
--- A client holds a valid token for its own profile row, so without this it
--- could simply set plan = 'pro'. Billing columns change only via the service
--- role, which is what the Stripe webhook uses.
-create or replace function public.protect_billing_columns()
-returns trigger
-language plpgsql
-as $$
-begin
-  if auth.role() <> 'service_role' then
-    new.plan                   := old.plan;
-    new.stripe_customer_id     := old.stripe_customer_id;
-    new.stripe_subscription_id := old.stripe_subscription_id;
-    new.plan_renews_at         := old.plan_renews_at;
-  end if;
-  new.updated_at := now();
-  return new;
-end $$;
+create or replace function public.touch_updated_at()
+returns trigger language plpgsql as $$
+begin new.updated_at := now(); return new; end $$;
 
-create trigger profiles_protect_billing
+create trigger profiles_touch_updated_at
   before update on public.profiles
-  for each row execute function public.protect_billing_columns();
+  for each row execute function public.touch_updated_at();
 
 -- Give every new account a profile, carrying whatever name the provider gave
 -- us (Google supplies one; email signup will not).
@@ -257,10 +238,6 @@ end $$;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
-
-create or replace function public.touch_updated_at()
-returns trigger language plpgsql as $$
-begin new.updated_at := now(); return new; end $$;
 
 create trigger posts_touch_updated_at
   before update on public.posts

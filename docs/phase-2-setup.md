@@ -31,7 +31,7 @@ message rather than editing the SQL.
 - **anon / public key** → send me (safe in the browser; it only ever grants
   what the row-level policies allow)
 - **service_role key** → **do not send me, do not paste in chat.** Add it
-  directly to Vercel yourself in step 4. It bypasses every security policy.
+  directly to Vercel yourself in step 3. It bypasses every security policy.
 
 ---
 
@@ -55,20 +55,7 @@ Nothing here needs to reach me — it lives in Supabase.
 
 ---
 
-## 3. Stripe
-
-1. <https://stripe.com> → create the account. Test mode is fine for now; the
-   live keys need your business and bank details.
-2. **Products → Add product** — create the Innerly subscription with a monthly
-   price and a yearly price.
-3. **Developers → API keys**: the **publishable key** → send me. The **secret
-   key** goes into Vercel yourself, like the service role key above.
-4. The webhook signing secret comes later — I will tell you the endpoint URL
-   once the code exists, and you create the webhook then.
-
----
-
-## 4. Vercel environment variables
+## 3. Vercel environment variables
 
 **Project → Settings → Environment Variables**, for all environments:
 
@@ -77,13 +64,10 @@ Nothing here needs to reach me — it lives in Supabase.
 | `NEXT_PUBLIC_SUPABASE_URL` | Project URL | me, once you send it |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon key | me, once you send it |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role key | **you, directly** |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | publishable key | me, once you send it |
-| `STRIPE_SECRET_KEY` | secret key | **you, directly** |
-| `STRIPE_WEBHOOK_SECRET` | signing secret | you, later |
 
 ---
 
-## 5. Make yourself an admin
+## 4. Make yourself an admin
 
 You cannot do this until you have signed in once, because the row points at
 your account.
@@ -114,9 +98,12 @@ In this order, because each depends on the one before:
    be checked before the next.
 4. **Admin at `/admin`** — its own sign-in, publishing for blogs and
    tutorials, image uploads.
-5. **Freemium gates** — once we have settled what is free and what is not.
-6. **Stripe** — checkout, subscriptions, the webhook that sets `plan`.
-7. **Admin dashboard** — signups, active accounts, revenue.
+5. **Admin dashboard** — signups, active accounts, retention, which posts get
+   read. No revenue line: the app is free.
+
+Innerly is free, so there is no billing anywhere in this phase. If that ever
+changes, it is one migration to add the columns and a self-contained piece of
+work to add checkout — nothing built here has to be undone for it.
 
 ## Two things that change the day accounts go live
 
