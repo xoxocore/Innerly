@@ -33,10 +33,13 @@
 
   --radius: 1.25rem;
 
-  /* The single action green, from the reference card. Used for progress and
-     for the primary action on the writing screens. */
-  --brand-green: #4caf50;
-  --brand-green-ink: #3d8b40;
+  /* The brand green, sampled from the logotype itself (see tools/prepare-logo).
+     It is bright, which makes it a poor ground for white text — 2.4:1, well
+     under the 4.5:1 minimum — so anything carrying a label uses `strong`, and
+     `green` proper is kept for the mark, dots, rails and progress fills. */
+  --brand-green: #00bf63;
+  --brand-green-strong: #00874a;
+  --brand-green-ink: #00874a;
 }
 
 .dark {
@@ -65,8 +68,11 @@
   --input: #ffffff24;
   --ring: #9e9e9e;
 
-  --brand-green: #55c15a;
-  --brand-green-ink: #7ad47e;
+  /* On a dark ground the mark's own green reads cleanly as text (7.7:1), so
+     only the ink changes; `strong` still carries white labels at 4.6:1. */
+  --brand-green: #00bf63;
+  --brand-green-strong: #00874a;
+  --brand-green-ink: #00bf63;
 }
 
 @theme inline {
@@ -161,11 +167,11 @@ h4 {
 }
 .hero-card:hover .hero-surface {
   box-shadow: 0 14px 36px -20px rgba(15, 23, 42, 0.16),
-    0 0 30px -8px rgba(76, 175, 80, 0.35);
+    0 0 30px -8px rgba(0, 191, 99, 0.32);
 }
 .hero-card:hover .hero-icon {
-  background-color: #e4f4e5;
-  color: #2e7d32;
+  background-color: #dff5e9;
+  color: #00874a;
 }
 .dark .hero-surface {
   box-shadow: 0 8px 30px -16px rgba(0, 0, 0, 0.5);

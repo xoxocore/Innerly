@@ -44,7 +44,7 @@ function Brand() {
   return (
     <div className="flex items-center gap-2.5">
       <Avatar name={profile?.firstName} className="h-8 w-8" />
-      <Wordmark className="text-[22px]" />
+      <Wordmark height={34} />
     </div>
   );
 }

@@ -130,7 +130,7 @@ export function VisionComposer({
             <Button
               size="sm"
               disabled={!canSave}
-              style={{ backgroundColor: "var(--brand-green)" }}
+              style={{ backgroundColor: "var(--brand-green-strong)" }}
               className="text-white"
               onClick={() => onSave({ title: title.trim(), description, imageUrl })}
             >

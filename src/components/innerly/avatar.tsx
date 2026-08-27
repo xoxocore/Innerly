@@ -16,7 +16,7 @@ export function Avatar({
     <span
       aria-hidden
       className={cn(
-        "grid shrink-0 place-items-center rounded-full bg-[var(--brand-green)] text-[13px] font-medium leading-none text-white",
+        "grid shrink-0 place-items-center rounded-full bg-[var(--brand-green-strong)] text-[13px] font-medium leading-none text-white",
         className
       )}
     >

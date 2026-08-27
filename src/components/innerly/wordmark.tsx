@@ -1,28 +1,35 @@
+/* eslint-disable @next/next/no-img-element */
+import { LOGO_ASPECT, LOGO_SRC } from "@/lib/logo";
 import { cn } from "@/lib/utils";
 
 /**
- * The Innerly logotype.
+ * The Innerly logotype — the real artwork, trimmed and given transparency by
+ * tools/prepare-logo.mjs from brand/innerly-logo-source.png.
  *
- * This is the wordmark set in a high-contrast editorial serif, which carries
- * the character of the real logotype (lowercase, calligraphic, green) without
- * pretending to be a pixel match. To use the actual artwork instead, drop it
- * at `public/innerly-logo.svg` and swap the span below for:
+ * Sized by height alone; the width follows from the trimmed aspect ratio, so
+ * callers never have to know the proportions. It carries its own colour, so
+ * nothing here tints it.
  *
- *   <img src="/innerly-logo.svg" alt="Innerly" className={cn("h-5 w-auto", className)} />
- *
- * Nothing else needs to change — every caller sizes this by height.
+ * Not next/image: the source is a data URI (which keeps it working in the
+ * single-file build), and the optimiser has nothing to do with 13KB that is
+ * already exactly the size it renders at.
  */
-export function Wordmark({ className }: { className?: string }) {
+export function Wordmark({
+  height = 22,
+  className,
+}: {
+  height?: number;
+  className?: string;
+}) {
   return (
-    <span
-      aria-label="Innerly"
-      role="img"
-      className={cn(
-        "select-none font-[family-name:var(--font-display)] leading-none tracking-[-0.01em] text-[var(--brand-green)]",
-        className
-      )}
-    >
-      innerly
-    </span>
+    <img
+      src={LOGO_SRC}
+      alt="Innerly"
+      width={Math.round(height * LOGO_ASPECT)}
+      height={height}
+      style={{ height, width: Math.round(height * LOGO_ASPECT) }}
+      className={cn("block select-none object-contain", className)}
+      draggable={false}
+    />
   );
 }

@@ -100,7 +100,7 @@ export function VisionBoard() {
             )}
             style={
               active?.id === y.id
-                ? { backgroundColor: "var(--brand-green)" }
+                ? { backgroundColor: "var(--brand-green-strong)" }
                 : undefined
             }
           >
@@ -138,7 +138,7 @@ export function VisionBoard() {
             />
             <button
               type="submit"
-              style={{ backgroundColor: "var(--brand-green)" }}
+              style={{ backgroundColor: "var(--brand-green-strong)" }}
               className="rounded-full px-3 py-1 text-[13px] font-medium text-white"
             >
               Add
@@ -182,7 +182,7 @@ export function VisionBoard() {
                     setEditing(null);
                     setComposerOpen(true);
                   }}
-                  style={{ backgroundColor: "var(--brand-green)" }}
+                  style={{ backgroundColor: "var(--brand-green-strong)" }}
                   className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                 >
                   <ImagePlus className="h-3.5 w-3.5" /> Add to board

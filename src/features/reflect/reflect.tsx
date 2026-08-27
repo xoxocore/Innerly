@@ -272,7 +272,7 @@ export function Reflect() {
               whileTap={{ scale: 0.97 }}
               disabled={step === 0 && !canContinue}
               onClick={() => setStep((s) => s + 1)}
-              style={{ backgroundColor: "var(--brand-green)" }}
+              style={{ backgroundColor: "var(--brand-green-strong)" }}
               className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[12.5px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               {c.continueLabel}
@@ -283,7 +283,7 @@ export function Reflect() {
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.97 }}
               onClick={save}
-              style={{ backgroundColor: "var(--brand-green)" }}
+              style={{ backgroundColor: "var(--brand-green-strong)" }}
               className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[12.5px] font-medium text-white transition-opacity hover:opacity-90"
             >
               <Check className="h-3.5 w-3.5" /> {c.saveLabel}
@@ -433,7 +433,7 @@ function Completion({
       >
         <button
           onClick={() => onNavigate("daily-plan")}
-          style={{ backgroundColor: "var(--brand-green)" }}
+          style={{ backgroundColor: "var(--brand-green-strong)" }}
           className="rounded-full px-5 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
         >
           {c.completionContinue}
