@@ -27,11 +27,15 @@ message rather than editing the SQL.
 
 **Project Settings → API**:
 
+Supabase has two key formats. Newer projects show the `sb_publishable_…` /
+`sb_secret_…` pair; older ones show a JWT-style `anon` key beginning `eyJ…`
+and a `service_role` key. Either works — they map one to one.
+
 - **Project URL** → send me
-- **anon / public key** → send me (safe in the browser; it only ever grants
-  what the row-level policies allow)
-- **service_role key** → **do not send me, do not paste in chat.** Add it
-  directly to Vercel yourself in step 3. It bypasses every security policy.
+- **publishable / anon key** → send me. Safe in a browser: it only ever grants
+  what the row-level policies allow.
+- **secret / service_role key** → **never send this, to me or anyone.** It
+  bypasses every policy. It goes straight into Vercel in step 3.
 
 ---
 
@@ -59,11 +63,18 @@ Nothing here needs to reach me — it lives in Supabase.
 
 **Project → Settings → Environment Variables**, for all environments:
 
-| Name | Value | Who adds it |
-| --- | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL | me, once you send it |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon key | me, once you send it |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role key | **you, directly** |
+All three are yours to add — I have no access to your Vercel account.
+
+| Name | Value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | publishable key (`sb_publishable_…`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | secret key (`sb_secret_…`) |
+
+`NEXT_PUBLIC_` variables are baked into the browser bundle and visible to
+anyone who looks — that is expected, and the publishable key is safe there
+*because* row-level security is on for every table. The secret key is not
+`NEXT_PUBLIC_` and must never become so.
 
 ---
 
