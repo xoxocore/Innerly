@@ -23,7 +23,7 @@ export function VisionBoard() {
   const [yearInput, setYearInput] = useState("");
   const [composerOpen, setComposerOpen] = useState(false);
   const [editing, setEditing] = useState<VisionItem | null>(null);
-  const [lightbox, setLightbox] = useState<VisionItem | null>(null);
+  const [lightboxAt, setLightboxAt] = useState<number | null>(null);
 
   const active = years.find((y) => y.id === selectedId) ?? years[0] ?? null;
 
@@ -72,8 +72,12 @@ export function VisionBoard() {
 
   const removeItem = (itemId: string) => {
     if (!active) return;
-    patchYear(active.id, { items: active.items.filter((i) => i.id !== itemId) });
-    setLightbox(null);
+    const rest = active.items.filter((i) => i.id !== itemId);
+    patchYear(active.id, { items: rest });
+    // Stay in the deck if anything is left, landing on the neighbour.
+    setLightboxAt((at) =>
+      rest.length === 0 || at === null ? null : Math.min(at, rest.length - 1)
+    );
   };
 
   const visions = active?.items.length ?? 0;
@@ -83,25 +87,30 @@ export function VisionBoard() {
       <ScreenHeader breadcrumb={c.breadcrumb} title={c.title} subtitle={c.subtitle} />
 
       {/* Year chips */}
-      <div className="mb-8 flex flex-wrap items-center gap-2">
+      <div className="mb-7 flex flex-wrap items-center gap-2">
         {years.map((y) => (
           <button
             key={y.id}
             onClick={() => setSelectedId(y.id)}
             className={cn(
-              "inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors",
+              "inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors",
               active?.id === y.id
-                ? "bg-foreground text-background"
+                ? "text-white"
                 : "bg-secondary text-muted-foreground hover:text-foreground"
             )}
+            style={
+              active?.id === y.id
+                ? { backgroundColor: "var(--brand-green)" }
+                : undefined
+            }
           >
             {y.year}
             {y.items.length > 0 && (
               <span
                 className={cn(
-                  "grid h-5 min-w-5 place-items-center rounded-full px-1 text-xs",
+                  "grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px]",
                   active?.id === y.id
-                    ? "bg-background/20 text-background"
+                    ? "bg-white/25 text-white"
                     : "bg-background text-muted-foreground"
                 )}
               >
@@ -117,7 +126,7 @@ export function VisionBoard() {
               e.preventDefault();
               addYear();
             }}
-            className="flex items-center gap-2 rounded-full border border-input bg-card pl-4 pr-1.5 py-1"
+            className="flex items-center gap-2 rounded-full border border-border/70 bg-card py-0.5 pl-3.5 pr-1"
           >
             <input
               autoFocus
@@ -125,11 +134,12 @@ export function VisionBoard() {
               onChange={(e) => setYearInput(e.target.value)}
               onBlur={() => !yearInput && setAddingYear(false)}
               placeholder="e.g. 2028"
-              className="w-20 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              className="w-16 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
             />
             <button
               type="submit"
-              className="rounded-full bg-foreground px-3 py-1.5 text-sm font-medium text-background"
+              style={{ backgroundColor: "var(--brand-green)" }}
+              className="rounded-full px-3 py-1 text-[13px] font-medium text-white"
             >
               Add
             </button>
@@ -137,31 +147,31 @@ export function VisionBoard() {
         ) : (
           <button
             onClick={() => setAddingYear(true)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-1.5 text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
           >
-            <Plus className="h-4 w-4" /> Year
+            <Plus className="h-3.5 w-3.5" /> Year
           </button>
         )}
       </div>
 
       {!active ? (
-        <Card className="p-10 text-center">
-          <p className="text-[15px] leading-relaxed text-muted-foreground">
+        <Card className="p-8 text-center">
+          <p className="text-[13.5px] leading-relaxed text-muted-foreground">
             Add a year to start gathering what you&apos;re building toward.
           </p>
         </Card>
       ) : (
         <>
           {/* Active year header */}
-          <div className="mb-6 flex items-start justify-between gap-4">
+          <div className="mb-5 flex items-start justify-between gap-4">
             <div>
               <input
                 value={active.year}
                 onChange={(e) => patchYear(active.id, { year: e.target.value })}
                 aria-label="Edit year"
-                className="w-40 bg-transparent text-[2rem] font-normal leading-tight tracking-tight text-heading outline-none"
+                className="w-36 bg-transparent text-[1.5rem] font-normal leading-tight tracking-tight text-heading outline-none"
               />
-              <p className="mt-0.5 text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
                 {visions} {visions === 1 ? "Vision" : "Visions"}
               </p>
             </div>
@@ -172,17 +182,18 @@ export function VisionBoard() {
                     setEditing(null);
                     setComposerOpen(true);
                   }}
-                  className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: "var(--brand-green)" }}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
                 >
-                  <ImagePlus className="h-4 w-4" /> Add to board
+                  <ImagePlus className="h-3.5 w-3.5" /> Add to board
                 </button>
               )}
               <button
                 onClick={() => deleteYear(active.id)}
                 aria-label="Delete year"
-                className="grid h-10 w-10 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
+                className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-destructive"
               >
-                <Trash className="h-4 w-4" />
+                <Trash className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -218,13 +229,13 @@ export function VisionBoard() {
 
           {/* Grid */}
           {visions === 0 && !composerOpen ? (
-            <Card className="p-10 text-center">
-              <p className="text-[15px] leading-relaxed text-muted-foreground">
+            <Card className="p-8 text-center">
+              <p className="text-[13.5px] leading-relaxed text-muted-foreground">
                 Nothing here yet. Add the first thing you&apos;re calling in.
               </p>
             </Card>
           ) : (
-            <motion.div layout className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <motion.div layout className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               <AnimatePresence initial={false}>
                 {active.items.map((item) => (
                   <motion.button
@@ -234,28 +245,30 @@ export function VisionBoard() {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.96 }}
                     whileHover={{ y: -3 }}
-                    onClick={() => setLightbox(item)}
-                    className="overflow-hidden rounded-3xl border border-border bg-card text-left"
+                    onClick={() => setLightboxAt(active.items.indexOf(item))}
+                    className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left"
                   >
                     {item.imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={item.imageUrl}
                         alt={item.title}
-                        className="aspect-[4/3] w-full bg-secondary object-cover"
+                        className="aspect-square w-full shrink-0 bg-secondary object-cover"
                       />
                     ) : (
                       <div
-                        className="aspect-[4/3] w-full"
+                        className="aspect-square w-full shrink-0"
                         style={{ backgroundImage: gradient(item.gradient ?? ACCENTS[0]) }}
                       />
                     )}
-                    <div className="p-5">
-                      <h3 className="text-[17px] font-medium leading-snug text-heading">
+                    {/* The caption grows to fill, so tiles in a row end level
+                        without a fixed height that would clip a wrapped title. */}
+                    <div className="flex-1 p-3">
+                      <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-heading">
                         {item.title}
                       </h3>
                       {item.description && (
-                        <p className="mt-1.5 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
+                        <p className="mt-0.5 line-clamp-1 text-[11.5px] leading-relaxed text-muted-foreground">
                           {stripHtml(item.description)}
                         </p>
                       )}
@@ -268,17 +281,19 @@ export function VisionBoard() {
         </>
       )}
 
-      {/* Lightbox */}
-      {lightbox && (
+      {/* Lightbox — the whole year as one swipeable deck */}
+      {active && lightboxAt !== null && active.items[lightboxAt] && (
         <VisionLightbox
-          item={lightbox}
-          onClose={() => setLightbox(null)}
+          items={active.items}
+          index={lightboxAt}
+          onIndexChange={setLightboxAt}
+          onClose={() => setLightboxAt(null)}
           onEdit={() => {
-            setEditing(lightbox);
+            setEditing(active.items[lightboxAt]);
             setComposerOpen(true);
-            setLightbox(null);
+            setLightboxAt(null);
           }}
-          onDelete={() => removeItem(lightbox.id)}
+          onDelete={() => removeItem(active.items[lightboxAt].id)}
         />
       )}
     </div>
