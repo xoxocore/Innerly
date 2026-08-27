@@ -12,6 +12,7 @@ import {
   Highlighter,
 } from "lucide-react";
 import { MultiAdd } from "@/components/innerly/multi-add";
+import { RosyGlow } from "@/components/innerly/rosy-glow";
 import { AutoTextarea } from "@/components/innerly/auto-textarea";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
@@ -36,28 +37,14 @@ const SOFT = [
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function RosyGlow({ night, className }: { night: boolean; className?: string }) {
-  return (
-    <motion.div
-      aria-hidden
-      className={cn("pointer-events-none absolute -z-10 rounded-full blur-3xl", className)}
-      style={{
-        background: night
-          ? "radial-gradient(circle, rgba(196,206,234,0.22), transparent 70%)"
-          : "radial-gradient(circle, rgba(255,201,220,0.55), rgba(255,224,234,0.22) 46%, transparent 72%)",
-      }}
-      animate={{ opacity: [0.4, 0.7, 0.4], scale: [1, 1.08, 1] }}
-      transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
-    />
-  );
-}
+// One narrow column, so the writing card reads as a compact panel rather than
+// a page-wide sheet — the shape a focused, one-question-at-a-time form wants.
+const column = "mx-auto w-full max-w-[560px]";
 
-// Liquid-glass writing card that lifts off the glassy background.
-const glassCard =
-  "relative overflow-hidden rounded-3xl bg-card/55 p-6 ring-1 ring-white/60 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.32),inset_0_1px_0_rgba(255,255,255,0.65)] backdrop-blur-2xl sm:p-8 dark:ring-white/10 dark:shadow-[0_24px_60px_-28px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.08)]";
+const glassCard = "glass-card p-5 sm:p-6";
 
 const writeBox =
-  "w-full resize-none rounded-2xl border border-border/60 bg-card/60 px-4 py-3 text-sm leading-relaxed text-foreground outline-none backdrop-blur-sm transition-colors placeholder:text-muted-foreground/60 focus:border-[#f4c4d6] focus:bg-card/80 dark:focus:border-[#3a2a30]";
+  "w-full resize-none rounded-2xl border border-border/60 bg-card/60 px-3.5 py-2.5 text-[13.5px] leading-relaxed text-foreground outline-none backdrop-blur-sm transition-colors placeholder:text-muted-foreground/60 focus:border-[var(--brand-green)] focus:bg-card/80";
 
 export function Reflect() {
   const { navigate, night } = useApp();
@@ -113,30 +100,30 @@ export function Reflect() {
   const cur = steps[step];
 
   return (
-    <div className="relative isolate">
+    <div className={cn("relative isolate", column)}>
       <RosyGlow night={night} className="-top-16 left-1/2 h-64 w-[34rem] -translate-x-1/2" />
 
       {/* Calm header */}
-      <header className="mb-6">
-        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+      <header className="mb-5">
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-muted-foreground">
           {c.breadcrumb}
         </p>
-        <h1 className="title-regular mt-2.5 text-[1.6rem] leading-[1.15] tracking-tight text-heading sm:text-[1.9rem]">
+        <h1 className="title-regular mt-2 text-[1.35rem] leading-[1.15] tracking-tight text-heading sm:text-[1.5rem]">
           {c.title}
         </h1>
-        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+        <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
           {c.subtitle}
         </p>
       </header>
 
       {/* Progress */}
-      <div className="mb-5">
-        <div className="flex gap-1.5">
+      <div className="mb-4">
+        <div className="flex gap-1">
           {steps.map((_, i) => (
-            <div key={i} className="h-1.5 flex-1 overflow-hidden rounded-full bg-foreground/10">
+            <div key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-foreground/10">
               <motion.div
                 className="h-full rounded-full"
-                style={{ background: "linear-gradient(90deg, #f7b8ce, var(--foreground))" }}
+                style={{ backgroundColor: "var(--brand-green)" }}
                 initial={false}
                 animate={{ width: i <= step ? "100%" : "0%" }}
                 transition={{ duration: 0.5, ease: EASE }}
@@ -144,7 +131,7 @@ export function Reflect() {
             </div>
           ))}
         </div>
-        <p className="mt-2 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+        <p className="mt-2 text-[10px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
           Step {step + 1} of {steps.length}
         </p>
       </div>
@@ -159,10 +146,10 @@ export function Reflect() {
             exit={{ opacity: 0, y: -14 }}
             transition={{ duration: 0.35, ease: EASE }}
           >
-            <h2 className="text-[17px] leading-snug text-heading">{cur.title}</h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{cur.hint}</p>
+            <h2 className="text-[15px] leading-snug text-heading">{cur.title}</h2>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">{cur.hint}</p>
 
-            <div className="mt-6">
+            <div className="mt-5">
               {step === 0 && (
                 <MultiAdd
                   values={moments}
@@ -173,12 +160,12 @@ export function Reflect() {
               )}
 
               {step === 1 && (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {cleanMoments.map((m, i) => {
                     const dot = SOFT[i % SOFT.length].dot;
                     return (
                       <div key={i}>
-                        <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <p className="flex items-center gap-2 text-[13px] font-medium text-foreground">
                           <span
                             className="h-2 w-2 shrink-0 rounded-full"
                             style={{ backgroundColor: dot }}
@@ -189,7 +176,7 @@ export function Reflect() {
                           value={whys[i] ?? ""}
                           onChange={(e) => setWhys((p) => ({ ...p, [i]: e.target.value }))}
                           placeholder="Because…"
-                          className={cn("mt-2 min-h-[4.5rem]", writeBox)}
+                          className={cn("mt-1.5 min-h-[3.75rem]", writeBox)}
                         />
                       </div>
                     );
@@ -199,7 +186,7 @@ export function Reflect() {
 
               {step === 2 && (
                 <div>
-                  <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  <p className="text-[12.5px] leading-relaxed text-muted-foreground">
                     {c.step3Intro}
                   </p>
                   <ReviewToolbar night={night} />
@@ -220,14 +207,14 @@ export function Reflect() {
               )}
 
               {step === 3 && (
-                <div className="space-y-5">
+                <div className="space-y-4">
                   {cleanMoments.map((m, i) => {
                     const color = SOFT[i % SOFT.length];
                     const recap = reviewParts[i] ?? partBase(m, whys[i]?.trim());
                     return (
                       <div
                         key={i}
-                        className="rounded-2xl border border-border/50 bg-card/40 p-4 backdrop-blur-sm"
+                        className="rounded-2xl border border-border/50 bg-card/40 p-3.5 backdrop-blur-sm"
                       >
                         {/* recap of steps 1–3 for this entry */}
                         <div className="flex items-start gap-2">
@@ -236,13 +223,13 @@ export function Reflect() {
                             style={{ backgroundColor: color.dot }}
                           />
                           <div
-                            className="rich-content min-w-0 flex-1 text-[13px] leading-relaxed text-foreground/90"
+                            className="rich-content min-w-0 flex-1 text-[12.5px] leading-relaxed text-foreground/90"
                             dangerouslySetInnerHTML={{ __html: recap }}
                           />
                         </div>
 
                         {/* per-entry next steps — add as many points as you like */}
-                        <p className="mb-2 mt-4 text-[11px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                        <p className="mb-2 mt-3.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
                           What I&apos;ll do next
                         </p>
                         <MultiAdd
@@ -259,7 +246,7 @@ export function Reflect() {
             </div>
 
             {step === 0 && !canContinue && (
-              <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">
+              <p className="mt-3.5 text-[12.5px] leading-relaxed text-muted-foreground">
                 {c.gentleGate}
               </p>
             )}
@@ -267,11 +254,11 @@ export function Reflect() {
         </AnimatePresence>
 
         {/* Navigation */}
-        <div className="mt-7 flex items-center justify-between gap-3">
+        <div className="mt-6 flex items-center justify-between gap-3">
           {step > 0 ? (
             <button
               onClick={() => setStep((s) => s - 1)}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12.5px] font-medium text-muted-foreground transition-colors hover:bg-accent/60 hover:text-foreground"
             >
               <ArrowLeft className="h-4 w-4" /> Back
             </button>
@@ -285,19 +272,21 @@ export function Reflect() {
               whileTap={{ scale: 0.97 }}
               disabled={step === 0 && !canContinue}
               onClick={() => setStep((s) => s + 1)}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-40"
+              style={{ backgroundColor: "var(--brand-green)" }}
+              className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[12.5px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-40"
             >
               {c.continueLabel}
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-3.5 w-3.5" />
             </motion.button>
           ) : (
             <motion.button
               whileHover={{ y: -1 }}
               whileTap={{ scale: 0.97 }}
               onClick={save}
-              className="inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+              style={{ backgroundColor: "var(--brand-green)" }}
+              className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[12.5px] font-medium text-white transition-opacity hover:opacity-90"
             >
-              <Check className="h-4 w-4" /> {c.saveLabel}
+              <Check className="h-3.5 w-3.5" /> {c.saveLabel}
             </motion.button>
           )}
         </div>
@@ -336,14 +325,14 @@ function ReviewToolbar({ night }: { night: boolean }) {
       aria-label={label}
       onMouseDown={(e) => e.preventDefault()} // keep the text selection
       onClick={onClick}
-      className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       {children}
     </button>
   );
 
   return (
-    <div className="mt-4 flex items-center gap-0.5 rounded-2xl border border-border/60 bg-card/60 px-2 py-1.5 backdrop-blur-sm">
+    <div className="mt-3.5 flex items-center gap-0.5 rounded-2xl border border-border/60 bg-card/60 px-1.5 py-1 backdrop-blur-sm">
       <ToolBtn onClick={() => cmd("bold")} label="Bold">
         <Bold className="h-4 w-4" />
       </ToolBtn>
@@ -353,7 +342,7 @@ function ReviewToolbar({ night }: { night: boolean }) {
       <ToolBtn onClick={highlight} label="Highlight">
         <Highlighter className="h-4 w-4" />
       </ToolBtn>
-      <span className="ml-1.5 truncate text-[11px] text-muted-foreground">
+      <span className="ml-1.5 truncate text-[10.5px] text-muted-foreground">
         Select text in a card, then mark what stands out
       </span>
     </div>
@@ -385,7 +374,7 @@ function ReviewCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ease: EASE }}
-      className="rounded-2xl border-l-2 py-3 pl-4 pr-3"
+      className="rounded-2xl border-l-2 py-2.5 pl-3.5 pr-3"
       style={{
         borderColor: color.dot,
         backgroundColor: night ? color.softDark : color.soft,
@@ -396,7 +385,7 @@ function ReviewCard({
         contentEditable
         suppressContentEditableWarning
         onInput={() => onChange(ref.current?.innerHTML ?? "")}
-        className="rich-content min-h-[2rem] text-sm leading-relaxed text-foreground outline-none"
+        className="rich-content min-h-[1.75rem] text-[13px] leading-relaxed text-foreground outline-none"
       />
     </motion.div>
   );
@@ -431,7 +420,7 @@ function Completion({
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.12, duration: 0.5, ease: EASE }}
-        className="mt-6 max-w-md text-2xl font-normal leading-snug tracking-tight text-heading"
+        className="mt-5 max-w-sm text-[1.35rem] font-normal leading-snug tracking-tight text-heading"
       >
         {c.completionTitle}
       </motion.h2>
@@ -444,13 +433,14 @@ function Completion({
       >
         <button
           onClick={() => onNavigate("daily-plan")}
-          className="rounded-full bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          style={{ backgroundColor: "var(--brand-green)" }}
+          className="rounded-full px-5 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
         >
           {c.completionContinue}
         </button>
         <button
           onClick={() => onNavigate("dashboard")}
-          className="rounded-full px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="rounded-full px-5 py-2.5 text-[13px] font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
           {c.completionBack}
         </button>

@@ -134,7 +134,6 @@ export const copy = {
   dailyPlan: {
     breadcrumb: "Innerly · Daily Plan",
     title: "Daily Plan",
-    calendar: "Goal timeline",
     today: "Today",
     tomorrow: "Tomorrow",
     todayTitle: "Today",
