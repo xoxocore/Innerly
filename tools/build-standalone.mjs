@@ -74,6 +74,21 @@ const html = `<!doctype html>
 
 await writeFile(dest, html, "utf8");
 
+// 4) Also emit an Artifact-shaped copy. The Artifact host supplies its own
+// <html>/<head>/<body>, so that file carries only the page content and
+// re-declares on html/body/#root what the standalone build puts on the tags.
+const artifactShim = `
+html{height:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+body{min-height:100%;display:flex;flex-direction:column;background:var(--background);color:var(--foreground);}
+#root{display:flex;flex-direction:column;flex:1 1 auto;}
+`;
+const artifact = `<title>Innerly</title>
+<style>${css}${artifactShim}</style>
+<div id="root"></div>
+<script>${jsInline}</script>
+`;
+await writeFile(join(projectRoot, "Innerly-artifact.html"), artifact, "utf8");
+
 // Also drop a fresh, clearly-named copy in Downloads so it's easy to find/open.
 try {
   const downloads = join(process.env.USERPROFILE || process.env.HOME || ".", "Downloads", "Innerly.html");
