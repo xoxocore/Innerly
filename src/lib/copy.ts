@@ -134,6 +134,26 @@ export const copy = {
   dailyPlan: {
     breadcrumb: "Innerly · Daily Plan",
     title: "Daily Plan",
+    calendar: "Calendar",
+    todayTitle: "Today",
+    todayEmpty: "Nothing set for today yet — add the first thing below.",
+    addPlaceholder: "What will you do today?",
+    add: "Add",
+    fromGoals: "From your goals",
+    justToday: "Just for today",
+    goalsLabel: "Your goals",
+    addGoal: "Add goal",
+    goalsEmpty: "No goals yet. Add one and break it down from a year to today.",
+    goalsEmptyCta: "Add your first goal",
+    tapToPlan: "Tap to plan",
+    goalProgress: "{done}/{total} done",
+    // Spoken to the person, not about the data — the line that makes the list
+    // feel worth finishing.
+    nudgeEmpty: "Add what today asks of you.",
+    nudgeStart: "{n} to go. Start with the first one.",
+    nudgeMoving: "{n} left — you're moving.",
+    nudgeAlmost: "One left. Finish it.",
+    nudgeDone: "Every one, done. Rest easy.",
   },
   visionBoard: {
     breadcrumb: "Innerly · Vision Board",
