@@ -130,15 +130,17 @@ export function Settings() {
           <h2 className="text-lg font-medium text-heading">Account</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
             {user
-              ? "Signing out returns you to the sign-in screen. Your writing stays in your account."
+              ? "Signing out saves your writing to your account and removes it from this device, so nobody who uses this computer after you can read it. Sign back in to get it all."
               : "Signing out returns you to the welcome screen. Your data stays on this device."}
           </p>
           <Button
             variant="outline"
             className="mt-4"
             onClick={async () => {
-              await endSession();
+              // App state first, session second: ending the session wipes the
+              // device, so anything written after it would be left behind.
               signOut();
+              await endSession();
             }}
           >
             <LogOut className="h-4 w-4" /> Sign out

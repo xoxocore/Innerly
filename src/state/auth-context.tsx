@@ -11,6 +11,7 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
+import { detach, pull } from "@/lib/sync";
 
 type AuthState = {
   user: User | null;
@@ -19,6 +20,12 @@ type AuthState = {
   ready: boolean;
   /** When Supabase has no keys, the app runs on local storage exactly as before. */
   enabled: boolean;
+  /**
+   * False while this browser is still being brought in line with the account.
+   * Screens must not render before it is true: they read localStorage on
+   * mount, and mounting mid-pull would show the previous occupant's writing.
+   */
+  synced: boolean;
   signUp: (email: string, password: string, firstName: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -54,6 +61,10 @@ export class AuthError extends Error {}
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(!isSupabaseConfigured);
+  // Which account this browser currently holds the data of. Compared by id so
+  // a silent token refresh — which fires the same event as a sign-in — does
+  // not re-pull and does not blank the screen mid-sentence.
+  const [syncedFor, setSyncedFor] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -79,6 +90,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe();
     };
   }, []);
+
+  // Bring the device in line whenever the signed-in account changes. Runs
+  // before anything reads localStorage, which is what stops one person's
+  // reflections being handed to the next person on the same computer.
+  const userId = session?.user.id ?? null;
+  useEffect(() => {
+    // No reset when the session ends: `synced` below reads true whenever there
+    // is no session, and an explicit sign-out clears this itself. Doing it here
+    // as well would be a setState in an effect for no gain.
+    if (!isSupabaseConfigured || !userId || syncedFor === userId) return;
+
+    let cancelled = false;
+    pull(userId).finally(() => {
+      if (!cancelled) setSyncedFor(userId);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, syncedFor]);
 
   const guard = useCallback(() => {
     if (!isSupabaseConfigured) {
@@ -141,6 +171,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (!isSupabaseConfigured) return;
+    // Save anything still waiting on its debounce, THEN wipe the device. In
+    // that order: signing out must not cost someone the sentence they just
+    // typed, and must not leave it behind for whoever sits down next.
+    await detach();
+    setSyncedFor(null);
     await supabase().auth.signOut();
   }, []);
 
@@ -150,13 +185,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       ready,
       enabled: isSupabaseConfigured,
+      synced: !isSupabaseConfigured || !session || syncedFor === session.user.id,
       signUp,
       signIn,
       signInWithGoogle,
       sendReset,
       signOut,
     }),
-    [session, ready, signUp, signIn, signInWithGoogle, sendReset, signOut]
+    [session, ready, syncedFor, signUp, signIn, signInWithGoogle, sendReset, signOut]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

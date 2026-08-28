@@ -8,7 +8,7 @@ import { AppRouter } from "@/features/app-router";
 
 function Gate() {
   const { signedIn, hydrated } = useApp();
-  const { user, ready, enabled } = useAuth();
+  const { user, ready, enabled, synced } = useAuth();
 
   // Avoid a flash of the wrong screen before localStorage and the stored
   // session have both been read.
@@ -17,6 +17,11 @@ function Gate() {
   // Without Supabase keys the app behaves exactly as it did before accounts
   // existed, so a missing environment variable never locks anyone out.
   if (enabled && !user) return <AuthScreen />;
+
+  // Signed in, but this browser has not been brought in line with the account
+  // yet. Holding here is not politeness: the screens read localStorage as they
+  // mount, so rendering now would show whatever the last person left behind.
+  if (!synced) return <div className="min-h-dvh bg-background" />;
 
   // Signed in but the welcome has not been seen yet. The name they gave when
   // signing up is carried through, so it is never asked for twice.

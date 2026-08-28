@@ -47,6 +47,15 @@ export function subscribeStorage(fn: () => void) {
   };
 }
 
+// Set once by the sync layer, which mirrors every write to the signed-in
+// account. Kept as a hook rather than an import so this file never learns
+// what Supabase is: it writes to the device, and says so.
+let onWrite: ((key: string, value: unknown) => void) | null = null;
+
+export function setWriteHook(fn: (key: string, value: unknown) => void) {
+  onWrite = fn;
+}
+
 function write<T>(key: string, value: T) {
   if (typeof window === "undefined") return;
   try {
@@ -54,6 +63,7 @@ function write<T>(key: string, value: T) {
   } catch {
     /* ignore quota / private-mode errors */
   }
+  onWrite?.(key, value);
   queueMicrotask(() => {
     for (const fn of listeners) fn();
   });
@@ -69,6 +79,21 @@ export function usePersistentState<T>(key: string, initial: T) {
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  // Re-read when anything else touches the keyspace — a sign-in pulling the
+  // account down, or another screen writing the same key. Compared as JSON so
+  // an unchanged value does not re-render the tree on every unrelated write.
+  useEffect(
+    () =>
+      subscribeStorage(() => {
+        setValue((prev) => {
+          const next = read<T>(key, initial);
+          return JSON.stringify(next) === JSON.stringify(prev) ? prev : next;
+        });
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [key]
+  );
 
   const set = useCallback(
     (next: T | ((prev: T) => T)) => {
