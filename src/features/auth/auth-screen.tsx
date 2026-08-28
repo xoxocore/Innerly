@@ -2,15 +2,20 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight, Check, Loader2, Mail } from "lucide-react";
+import { AlertCircle, ArrowRight, Check, KeyRound, Loader2, Mail } from "lucide-react";
 import { RosyGlow } from "@/components/innerly/rosy-glow";
 import { Mark } from "@/components/innerly/mark";
 import { Wordmark } from "@/components/innerly/wordmark";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/app-context";
 import { useAuth } from "@/state/auth-context";
+import {
+  PasswordField,
+  checkPassword,
+  passwordOk,
+} from "./password-field";
 
-type Mode = "signIn" | "signUp" | "reset";
+type Mode = "signIn" | "signUp" | "reset" | "recovery";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
@@ -33,27 +38,54 @@ const COPY: Record<Mode, { title: string; sub: string; action: string }> = {
     sub: "We'll email you a link to set a new one.",
     action: "Send the link",
   },
+  recovery: {
+    title: "Choose a new password",
+    sub: "Make it one you'll remember — this is what unlocks your writing.",
+    action: "Save it and continue",
+  },
 };
 
 export function AuthScreen() {
   const { night } = useApp();
-  const { signIn, signUp, sendReset, signInWithGoogle, enabled } = useAuth();
+  const {
+    signIn,
+    signUp,
+    sendReset,
+    signInWithGoogle,
+    enabled,
+    recovery,
+    updatePassword,
+    resendConfirmation,
+    linkError,
+    dismissLinkError,
+  } = useAuth();
 
-  const [mode, setMode] = useState<Mode>("signIn");
+  const [chosen, setChosen] = useState<Mode>("signIn");
   const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<"reset" | "confirm" | null>(null);
+  const [resent, setResent] = useState(false);
+
+  // Derived rather than stored: arriving on a reset link outranks whatever was
+  // on screen, and there is no moment where the two could disagree.
+  const mode: Mode = recovery ? "recovery" : chosen;
 
   const c = COPY[mode];
+  const needsConfirm = mode === "signUp" || mode === "recovery";
+  const mismatch = needsConfirm && confirm.length > 0 && confirm !== password;
 
   const go = (next: Mode) => {
-    setMode(next);
+    setChosen(next);
     setError(null);
     setSent(null);
+    setResent(false);
     setPassword("");
+    setConfirm("");
+    dismissLinkError();
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -67,6 +99,10 @@ export function AuthScreen() {
         // Whether a confirmation email is needed depends on the project's
         // settings, so say what happened without promising either way.
         setSent("confirm");
+      } else if (mode === "recovery") {
+        // Succeeding here clears the recovery flag, and the gate lets them
+        // through on the next render — no further sign-in needed.
+        await updatePassword(password);
       } else {
         await sendReset(email);
         setSent("reset");
@@ -78,9 +114,20 @@ export function AuthScreen() {
     }
   };
 
+  const resend = async () => {
+    setError(null);
+    try {
+      await resendConfirmation(email);
+      setResent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  };
+
   const canSubmit =
-    email.trim().length > 3 &&
+    (mode === "recovery" || email.trim().length > 3) &&
     (mode === "reset" || password.length > 0) &&
+    (!needsConfirm || (passwordOk(password) && confirm === password)) &&
     (mode !== "signUp" || firstName.trim().length > 0);
 
   if (sent) {
@@ -103,6 +150,23 @@ export function AuthScreen() {
               ? `If there's an account for ${email.trim()}, a reset link is on its way.`
               : `We've sent a confirmation link to ${email.trim()}. Open it and you're in.`}
           </p>
+          {sent === "confirm" && (
+            <p className="mt-4 text-[12px] leading-relaxed text-muted-foreground">
+              Nothing after a minute? Check spam, then{" "}
+              {resent ? (
+                <span className="font-medium text-[var(--brand-green-ink)]">
+                  sent again — it&apos;s on its way.
+                </span>
+              ) : (
+                <button
+                  onClick={resend}
+                  className="font-medium text-[var(--brand-green-ink)] hover:underline"
+                >
+                  send it again
+                </button>
+              )}
+            </p>
+          )}
           <button
             onClick={() => go("signIn")}
             className="mt-6 text-[13px] font-medium text-[var(--brand-green-ink)] hover:underline"
@@ -136,6 +200,13 @@ export function AuthScreen() {
               {c.sub}
             </p>
 
+            {linkError && (
+              <p className="mt-4 flex items-start gap-2 rounded-2xl bg-destructive/10 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-destructive">
+                <AlertCircle className="mt-px h-4 w-4 shrink-0" />
+                {linkError}
+              </p>
+            )}
+
             <form onSubmit={submit} className="mt-5 flex flex-col gap-2.5">
               {mode === "signUp" && (
                 <input
@@ -148,26 +219,38 @@ export function AuthScreen() {
                 />
               )}
 
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                type="email"
-                inputMode="email"
-                placeholder="Email"
-                aria-label="Email"
-                autoComplete="email"
-                className={field}
-              />
+              {mode !== "recovery" && (
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  type="email"
+                  inputMode="email"
+                  placeholder="Email"
+                  aria-label="Email"
+                  autoComplete="email"
+                  className={field}
+                />
+              )}
 
               {mode !== "reset" && (
-                <input
+                <PasswordField
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  type="password"
-                  placeholder={mode === "signUp" ? "Password (6+ characters)" : "Password"}
-                  aria-label="Password"
-                  autoComplete={mode === "signUp" ? "new-password" : "current-password"}
-                  className={field}
+                  onChange={setPassword}
+                  placeholder={needsConfirm ? "New password" : "Password"}
+                  label="Password"
+                  autoComplete={needsConfirm ? "new-password" : "current-password"}
+                  checks={needsConfirm ? checkPassword(password) : undefined}
+                />
+              )}
+
+              {needsConfirm && (
+                <PasswordField
+                  value={confirm}
+                  onChange={setConfirm}
+                  placeholder="Confirm password"
+                  label="Confirm password"
+                  autoComplete="new-password"
+                  mismatch={mismatch}
                 />
               )}
 
@@ -193,6 +276,8 @@ export function AuthScreen() {
                     {c.action}
                     {mode === "signUp" ? (
                       <Check className="h-4 w-4" />
+                    ) : mode === "recovery" ? (
+                      <KeyRound className="h-4 w-4" />
                     ) : (
                       <ArrowRight className="h-4 w-4" />
                     )}
@@ -201,7 +286,7 @@ export function AuthScreen() {
               </button>
             </form>
 
-            {mode !== "reset" && enabled && (
+            {mode !== "reset" && mode !== "recovery" && enabled && (
               <>
                 <div className="my-4 flex items-center gap-3">
                   <span className="h-px flex-1 bg-border" />
@@ -240,7 +325,7 @@ export function AuthScreen() {
                   </button>
                 </>
               )}
-              {mode !== "signIn" && (
+              {mode !== "signIn" && mode !== "recovery" && (
                 <p className="text-muted-foreground">
                   Already have an account?{" "}
                   <button

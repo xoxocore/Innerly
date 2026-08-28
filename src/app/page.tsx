@@ -8,7 +8,7 @@ import { AppRouter } from "@/features/app-router";
 
 function Gate() {
   const { signedIn, hydrated } = useApp();
-  const { user, ready, enabled, synced } = useAuth();
+  const { user, ready, enabled, synced, recovery } = useAuth();
 
   // Avoid a flash of the wrong screen before localStorage and the stored
   // session have both been read.
@@ -17,6 +17,11 @@ function Gate() {
   // Without Supabase keys the app behaves exactly as it did before accounts
   // existed, so a missing environment variable never locks anyone out.
   if (enabled && !user) return <AuthScreen />;
+
+  // A reset link signs you in, which is precisely why this cannot fall through
+  // to the app: they came to change their password, and until they have, the
+  // old one still works for anyone who knows it.
+  if (recovery) return <AuthScreen />;
 
   // Signed in, but this browser has not been brought in line with the account
   // yet. Holding here is not politeness: the screens read localStorage as they

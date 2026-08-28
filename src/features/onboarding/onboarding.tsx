@@ -9,13 +9,17 @@ import { useApp } from "@/state/app-context";
 
 export function Onboarding({ initialName = "" }: { initialName?: string }) {
   const { completeOnboarding } = useApp();
-  const [step, setStep] = useState(0); // 0..slides-1, then name step
-  // Pre-filled when they have just signed up, so the name is never asked twice.
+  const [step, setStep] = useState(0); // 0..slides-1, then the name step
   const [name, setName] = useState(initialName);
 
   const total = ONBOARDING_SLIDES.length;
-  const onNameStep = step === total;
+  // Signing up already asked for a name. Asking again on the very next screen
+  // reads as an app that was not paying attention, so the step is dropped.
+  const knowsName = initialName.trim().length > 0;
+  const onNameStep = step === total && !knowsName;
   const slide = ONBOARDING_SLIDES[step];
+  const finish = () =>
+    knowsName ? completeOnboarding(initialName) : setStep(total);
 
   return (
     <main className="flex min-h-dvh flex-col bg-background px-6 py-6">
@@ -35,7 +39,7 @@ export function Onboarding({ initialName = "" }: { initialName?: string }) {
           </div>
           {!onNameStep && (
             <button
-              onClick={() => setStep(total)}
+              onClick={finish}
               className="text-[15px] font-medium text-muted-foreground hover:text-foreground"
             >
               Skip
@@ -52,7 +56,7 @@ export function Onboarding({ initialName = "" }: { initialName?: string }) {
               What should we call you?
             </h1>
             <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
-              Just a first name — this stays on your device.
+              Just a first name — it&apos;s only ever shown back to you.
             </p>
             <form
               className="mt-8"
@@ -88,7 +92,10 @@ export function Onboarding({ initialName = "" }: { initialName?: string }) {
                 <RippleMark className="aspect-square w-64" />
               </div>
             </div>
-            <Button size="pill" onClick={() => setStep((s) => s + 1)}>
+            <Button
+              size="pill"
+              onClick={() => (step === total - 1 ? finish() : setStep((s) => s + 1))}
+            >
               {step === total - 1 ? "Get started" : "Continue"}
             </Button>
           </>
