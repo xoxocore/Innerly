@@ -208,6 +208,15 @@ export function isSyncing() {
   return currentUser !== null;
 }
 
+/**
+ * Whose account this browser is currently holding, or null when signed out.
+ * Storage paths are prefixed with it, because that first segment is what the
+ * bucket policy fences on.
+ */
+export function currentUserId(): string | null {
+  return currentUser;
+}
+
 // Installed at module load. Keeps storage.ts free of any knowledge of
 // Supabase — it writes to the device and tells whoever is listening.
 setWriteHook(push);

@@ -156,6 +156,11 @@ plays an attacker against a real Postgres and every attempt comes back empty.
 **Someone who is not signed in reads nothing at all** except published blog
 posts and tutorials.
 
+**Vision-board photos are private too.** They go in a bucket that is not
+public, so no photo can be reached by URL alone. Showing one means asking
+Supabase for a link that lasts an hour and belongs to whoever uploaded it.
+Tested the same way as the entries — `supabase/tests/storage-rls.sql`.
+
 **Signing out wipes the device.** The app keeps a local copy so it is fast and
 works offline; sign-out uploads anything outstanding and then deletes that
 copy. On a shared or borrowed computer, the next person gets an empty app.
@@ -180,10 +185,6 @@ Tell me if you want that and I will scope it.
 
 Named so nothing is a surprise later:
 
-- **Vision-board photos.** Still held in the browser as data URLs, which caps
-  out at about 5MB per person — roughly three photos, after which saving
-  silently stops. They need to move to Supabase Storage (the bucket already
-  exists). **This is the first thing to fix after launch.**
 - **Live sync between two open devices.** Today, a second device sees changes
   after a reload, and the later write wins.
 - **The admin area** — publishing blogs and tutorials, and the dashboard.

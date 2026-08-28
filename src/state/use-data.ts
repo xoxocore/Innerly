@@ -1,7 +1,13 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { KEYS, usePersistentState } from "@/lib/storage";
+import {
+  isDataUrl,
+  signVisionImages,
+  storageEnabled,
+  uploadVisionImage,
+} from "@/features/vision-board/vision-images";
 import {
   normalizeGoal,
   normalizeVisionYear,
@@ -60,16 +66,77 @@ export function useManifestations() {
   return usePersistentState<Manifestation[]>(KEYS.manifestations, []);
 }
 
+/**
+ * Take the signed preview URL back off before anything is written to disk.
+ *
+ * Callers edit the resolved shape — the one with a working `imageUrl` — so
+ * without this an hour-long link would be saved as if it were the photo, and
+ * every board would go blank the next day. The rule is one line and absolute:
+ * where there is an `imagePath`, `imageUrl` is not persisted.
+ */
+export function stripSignedUrls(years: VisionYear[]): VisionYear[] {
+  return years.map((y) => ({
+    ...y,
+    items: y.items.map((it) =>
+      it.imagePath ? { ...it, imageUrl: undefined } : it
+    ),
+  }));
+}
+
 // Sanitized on read/write so stale/odd vision data can never crash the screen.
+//
+// This hook is also where vision photos get resolved. Everything downstream —
+// the board, the lightbox, the shareable card, the history feed — reads
+// `item.imageUrl` and renders it. Signing `imagePath` into that field here
+// means none of them had to learn that photos moved to Storage.
 export function useVisionBoard() {
   const [raw, setRaw, hydrated] = usePersistentState<unknown[]>(
     KEYS.visionboard,
     []
   );
 
-  const years = useMemo<VisionYear[]>(
+  const stored = useMemo<VisionYear[]>(
     () => (Array.isArray(raw) ? raw.map((y, i) => normalizeVisionYear(y, i)) : []),
     [raw]
+  );
+
+  // path -> signed URL. Kept beside the data rather than inside it, so a link
+  // that expires within the hour can never be written to disk.
+  const [signed, setSigned] = useState<Map<string, string>>(new Map());
+
+  const paths = useMemo(
+    () =>
+      stored
+        .flatMap((y) => y.items)
+        .map((i) => i.imagePath)
+        .filter((p): p is string => !!p),
+    [stored]
+  );
+  const pathKey = paths.join("|");
+
+  useEffect(() => {
+    if (paths.length === 0) return;
+    let cancelled = false;
+    signVisionImages(paths).then((map) => {
+      if (!cancelled) setSigned(map);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathKey]);
+
+  const years = useMemo<VisionYear[]>(
+    () =>
+      stored.map((y) => ({
+        ...y,
+        items: y.items.map((it) =>
+          it.imagePath
+            ? { ...it, imageUrl: signed.get(it.imagePath) ?? it.imageUrl }
+            : it
+        ),
+      })),
+    [stored, signed]
   );
 
   const setYears = useCallback(
@@ -78,15 +145,71 @@ export function useVisionBoard() {
         const cur = Array.isArray(prev)
           ? prev.map((y, i) => normalizeVisionYear(y, i))
           : [];
-        return typeof next === "function"
-          ? (next as (p: VisionYear[]) => VisionYear[])(cur)
-          : next;
+        const resolved =
+          typeof next === "function"
+            ? (next as (p: VisionYear[]) => VisionYear[])(cur)
+            : next;
+        return stripSignedUrls(resolved);
       });
     },
     [setRaw]
   );
 
   return [years, setYears, hydrated] as const;
+}
+
+/**
+ * Move photos that predate Storage — held as data URLs in the browser — up to
+ * the bucket, once, after signing in. This is what actually frees the space
+ * that was capping a board at about three photos.
+ */
+export function useVisionImageMigration(
+  years: VisionYear[],
+  setYears: (next: (prev: VisionYear[]) => VisionYear[]) => void,
+  ready: boolean
+) {
+  const [done, setDone] = useState(false);
+
+  const legacy = useMemo(
+    () =>
+      years
+        .flatMap((y) => y.items)
+        .filter((it) => !it.imagePath && isDataUrl(it.imageUrl))
+        .map((it) => ({ id: it.id, dataUrl: it.imageUrl as string })),
+    [years]
+  );
+  const legacyKey = legacy.map((l) => l.id).join("|");
+
+  useEffect(() => {
+    if (done || !ready || legacy.length === 0 || !storageEnabled()) return;
+
+    let cancelled = false;
+    (async () => {
+      const moved = new Map<string, string>();
+      for (const { id, dataUrl } of legacy) {
+        const path = await uploadVisionImage(dataUrl, id);
+        if (path) moved.set(id, path);
+      }
+      if (cancelled || moved.size === 0) return;
+
+      setYears((prev) =>
+        prev.map((y) => ({
+          ...y,
+          items: y.items.map((it) =>
+            moved.has(it.id)
+              ? { ...it, imagePath: moved.get(it.id), imageUrl: undefined }
+              : it
+          ),
+        }))
+      );
+      setDone(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legacyKey, ready, done]);
 }
 
 export function useRemindersChecked() {

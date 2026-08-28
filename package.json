@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "build:single": "node tools/build-standalone.mjs",
-    "test:sync": "node tools/test-sync.mjs"
+    "test:sync": "node tools/test-sync.mjs",
+    "test:vision": "node tools/test-vision-images.mjs",
+    "test": "npm run test:sync && npm run test:vision"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
