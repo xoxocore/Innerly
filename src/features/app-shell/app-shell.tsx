@@ -16,6 +16,7 @@ import {
   Sun,
 } from "lucide-react";
 import { Avatar } from "@/components/innerly/avatar";
+import { Mark } from "@/components/innerly/mark";
 import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
@@ -38,13 +39,14 @@ const LIBRARY: NavItem[] = [
   { view: "settings", label: copy.nav.settings, icon: Settings },
 ];
 
-// The person first, then the mark — you before the product.
+// Mark and wordmark as one lockup. The person is not here: their initial sits
+// at the foot of the sidebar with the streak, which is where account things
+// belong — and two circles side by side read as a mistake, not a pair.
 function Brand() {
-  const { profile } = useApp();
   return (
-    <div className="flex items-center gap-2.5">
-      <Avatar name={profile?.firstName} className="h-8 w-8" />
-      <Wordmark height={34} />
+    <div className="flex items-center gap-2">
+      <Mark size={26} />
+      <Wordmark height={24} />
     </div>
   );
 }
@@ -77,15 +79,16 @@ function NavLink({ item, layoutId }: { item: NavItem; layoutId: string }) {
 }
 
 function StreakNightRow() {
-  const { night, toggleNight, streak } = useApp();
+  const { night, toggleNight, streak, profile } = useApp();
   const label = streak === 1 ? copy.brand.streakSingular : copy.brand.streakPlural;
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary text-sm font-medium tabular-nums text-foreground">
-          {streak}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Avatar name={profile?.firstName} className="h-9 w-9 text-sm" />
+        <span className="min-w-0 truncate text-[13px] text-muted-foreground">
+          <span className="font-medium tabular-nums text-foreground">{streak}</span>{" "}
+          {label}
         </span>
-        <span className="text-[13px] text-muted-foreground">{label}</span>
       </div>
       <button
         onClick={toggleNight}

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight, Check, Loader2, Mail } from "lucide-react";
 import { RosyGlow } from "@/components/innerly/rosy-glow";
+import { Mark } from "@/components/innerly/mark";
 import { Wordmark } from "@/components/innerly/wordmark";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/app-context";
@@ -267,8 +268,9 @@ function Shell({ night, children }: { night: boolean; children: React.ReactNode 
     <main className="app-bg relative isolate flex min-h-dvh flex-col items-center justify-center px-5 py-10">
       <RosyGlow night={night} className="-top-10 left-1/2 h-72 w-[32rem] -translate-x-1/2" />
       <div className={cn("w-full max-w-[380px]")}>
-        <div className="mb-6 flex justify-center">
-          <Wordmark height={38} />
+        <div className="mb-7 flex flex-col items-center gap-3">
+          <Mark size={54} />
+          <Wordmark height={30} />
         </div>
         {children}
       </div>
