@@ -119,4 +119,5 @@ select 'a photo is readable only by whoever uploaded it',
                     and qual like '%auth.uid()%' and qual like '%visions%') >= 3
             then 'PASS' else 'FAIL: run 0002_storage.sql' end
 union all
-select 'accounts on the admin allowlist', (select count(*)::text from public.admins);
+select 'admins so far (0 is correct until you add yourself)',
+       (select count(*)::text from public.admins);
