@@ -132,7 +132,32 @@ Do this *after* step 2, or the confirmation email will not arrive.
 Admin rights come only from this table. Nothing anyone types during signup can
 grant them, which is what keeps the admin area closed.
 
-## 7. Sign in and use it
+## 7. Turn on the admin panel — 5 minutes
+
+Only needed when you want the panel at `/admin`. The app works without it.
+
+1. **SQL Editor → New query**, paste all of
+   `supabase/migrations/0004_admin.sql`, Run. Safe to run twice.
+
+2. **Project Settings → API**, copy the **service_role** (or `sb_secret_…`)
+   key. **Do not send it to anyone, including me.** It bypasses every policy
+   in the database.
+
+3. In Vercel: **Settings → Environment Variables → Add**.
+   - Name: `SUPABASE_SERVICE_ROLE_KEY`
+   - Value: the key you just copied
+   - Environments: tick **Production**
+   - **No `NEXT_PUBLIC_` prefix.** With one, Vercel would publish it to every
+     visitor, and anyone could read or delete anything.
+
+4. Redeploy, then open `https://innerly-sooty.vercel.app/admin` and sign in
+   with the account you added to the allowlist in step 6.
+
+The panel can suspend, restore and delete accounts. It cannot read what
+anyone wrote — the database refuses that for admins as well, which is checked
+by `supabase/tests/admin-rls.sql`.
+
+## 8. Sign in and use it
 
 Once 1 through 4 are done, the site is a working app: create an account,
 confirm the email, and you are in. Google sign-in (step 5) and the admin row
@@ -182,4 +207,7 @@ Named so nothing is a surprise later:
 
 - **Live sync between two open devices.** Today, a second device sees changes
   after a reload, and the later write wins.
-- **The admin area** — publishing blogs and tutorials, and the dashboard.
+- **Publishing from the admin panel.** The `posts` table and its bucket exist
+  and are locked correctly, but the Blog and Tutorials screens still read a
+  hardcoded list in `src/lib/content.ts`. Writing posts in the panel, and
+  switching those screens to read them, is the next piece.

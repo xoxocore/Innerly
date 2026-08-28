@@ -107,7 +107,18 @@ function clearLinkParams() {
 
 export class AuthError extends Error {}
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+  /**
+   * Whether to pull this account's writing onto the device. True in the app,
+   * where the screens read it. False in the admin panel, which has no business
+   * touching anyone's journal — its own owner's included.
+   */
+  sync = true,
+}: {
+  children: ReactNode;
+  sync?: boolean;
+}) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(!isSupabaseConfigured);
   // Which account this browser currently holds the data of. Compared by id so
@@ -170,6 +181,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // is no session, and an explicit sign-out clears this itself. Doing it here
     // as well would be a setState in an effect for no gain.
     if (!isSupabaseConfigured || !userId || syncedFor === userId) return;
+    // The admin panel pulls nothing, so there is nothing to wait for. The
+    // `synced` value below reads true in that case rather than being set here.
+    if (!sync) return;
 
     let cancelled = false;
     pull(userId).finally(() => {
@@ -178,7 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [userId, syncedFor]);
+  }, [userId, syncedFor, sync]);
 
   const guard = useCallback(() => {
     if (!isSupabaseConfigured) {
@@ -279,7 +293,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       ready,
       enabled: isSupabaseConfigured,
-      synced: !isSupabaseConfigured || !session || syncedFor === session.user.id,
+      synced:
+        !isSupabaseConfigured || !session || !sync || syncedFor === session.user.id,
       signUp,
       signIn,
       signInWithGoogle,
@@ -295,6 +310,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       ready,
       syncedFor,
+      sync,
       recovery,
       linkError,
       signUp,

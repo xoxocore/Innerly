@@ -40,6 +40,10 @@
   --brand-green: #00bf63;
   --brand-green-strong: #00874a;
   --brand-green-ink: #00874a;
+  /* Data marks. The bright brand green measures 2.37:1 on a light card —
+     fine as decoration, too faint to read as a line on a chart. Both values
+     below pass the lightness band and 3:1 contrast for their own surface. */
+  --chart-ink: #00874a;
 }
 
 .dark {
@@ -73,6 +77,7 @@
   --brand-green: #00bf63;
   --brand-green-strong: #00874a;
   --brand-green-ink: #00bf63;
+  --chart-ink: #00a85c;
 }
 
 @theme inline {
