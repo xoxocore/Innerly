@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { KEYS, usePersistentState } from "@/lib/storage";
 import { DEFAULT_PREFS, type Prefs } from "@/lib/types";
 import { useApp } from "@/state/app-context";
+import { useAuth } from "@/state/auth-context";
 
 const c = copy.settings;
 
@@ -52,6 +53,7 @@ function Toggle({
 
 export function Settings() {
   const { profile, setProfile, signOut, night, toggleNight } = useApp();
+  const { signOut: endSession, user } = useAuth();
   const [prefs, setPrefs] = usePersistentState<Prefs>(KEYS.prefs, DEFAULT_PREFS);
   const [name, setName] = useState(profile?.firstName ?? "");
 
@@ -127,10 +129,20 @@ export function Settings() {
         <Card className="p-6">
           <h2 className="text-lg font-medium text-heading">Account</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Signing out returns you to the welcome screen. Your data stays on this
-            device.
+            {user
+              ? "Signing out saves your writing to your account and removes it from this device, so nobody who uses this computer after you can read it. Sign back in to get it all."
+              : "Signing out returns you to the welcome screen. Your data stays on this device."}
           </p>
-          <Button variant="outline" className="mt-4" onClick={signOut}>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={async () => {
+              // App state first, session second: ending the session wipes the
+              // device, so anything written after it would be left behind.
+              signOut();
+              await endSession();
+            }}
+          >
             <LogOut className="h-4 w-4" /> Sign out
           </Button>
         </Card>

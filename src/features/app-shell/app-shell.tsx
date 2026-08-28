@@ -15,7 +15,9 @@ import {
   Moon,
   Sun,
 } from "lucide-react";
-import { RippleMark } from "@/components/innerly/ripple-mark";
+import { Avatar } from "@/components/innerly/avatar";
+import { Mark } from "@/components/innerly/mark";
+import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useApp, type View } from "@/state/app-context";
@@ -37,16 +39,13 @@ const LIBRARY: NavItem[] = [
   { view: "settings", label: copy.nav.settings, icon: Settings },
 ];
 
+// The full lockup: jellyfish, then the name. The wordmark carries the alt text,
+// so the mark beside it stays decorative rather than announcing "Innerly" twice.
 function Brand() {
   return (
-    <div className="flex items-center gap-3">
-      <RippleMark className="h-9 w-9" />
-      <div className="leading-tight">
-        <p className="text-base font-medium tracking-tight text-heading">
-          {copy.brand.appName}
-        </p>
-        <p className="text-[11px] text-muted-foreground">{copy.brand.tagline}</p>
-      </div>
+    <div className="flex items-center gap-2">
+      <Mark size={28} />
+      <Wordmark height={20} />
     </div>
   );
 }
@@ -79,15 +78,16 @@ function NavLink({ item, layoutId }: { item: NavItem; layoutId: string }) {
 }
 
 function StreakNightRow() {
-  const { night, toggleNight, streak } = useApp();
+  const { night, toggleNight, streak, profile } = useApp();
   const label = streak === 1 ? copy.brand.streakSingular : copy.brand.streakPlural;
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-secondary text-sm font-medium tabular-nums text-foreground">
-          {streak}
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Avatar name={profile?.firstName} className="h-9 w-9 text-sm" />
+        <span className="min-w-0 truncate text-[13px] text-muted-foreground">
+          <span className="font-medium tabular-nums text-foreground">{streak}</span>{" "}
+          {label}
         </span>
-        <span className="text-[13px] text-muted-foreground">{label}</span>
       </div>
       <button
         onClick={toggleNight}

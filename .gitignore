@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template carries no secrets and documents what the app needs.
+!.env.example
 
 # vercel
 .vercel
@@ -43,8 +45,9 @@ next-env.d.ts
 # personal, machine-local Claude Code settings (permissions allowlist)
 /.claude/settings.local.json
 
-# generated single-file build (recreate with `npm run build:single`)
+# generated single-file builds (recreate with `npm run build:single`)
 /Innerly-preview.html
+/Innerly-artifact.html
 
 # throwaway v48 extraction outputs (scripts in tools/ are kept)
 /tools/v48-*.json

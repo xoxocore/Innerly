@@ -42,8 +42,8 @@ export function VisionComposer({
   const canSave = title.trim().length > 0;
 
   return (
-    <Card className="p-5 sm:p-6">
-      <div className="grid gap-6 sm:grid-cols-[minmax(0,260px)_1fr]">
+    <Card className="p-4 sm:p-5">
+      <div className="grid gap-5 sm:grid-cols-[minmax(0,220px)_1fr]">
         {/* Image */}
         <div>
           <div
@@ -62,7 +62,7 @@ export function VisionComposer({
             ) : (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
                 <ImagePlus className="h-8 w-8" />
-                <span className="text-sm">Add an image</span>
+                <span className="text-[13px]">Add an image</span>
               </div>
             )}
             {imageUrl && (
@@ -88,18 +88,18 @@ export function VisionComposer({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={busy}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-secondary px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
+            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-2xl bg-secondary px-3.5 py-2 text-[13px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-60"
           >
-            <Upload className="h-4 w-4" /> {busy ? "Processing…" : "Upload image"}
+            <Upload className="h-3.5 w-3.5" /> {busy ? "Processing…" : "Upload image"}
           </button>
 
           <div className="mt-2 flex items-center gap-2 rounded-2xl border border-input bg-card px-3">
-            <Link2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <input
               value={imageUrl.startsWith("data:") ? "" : imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="…or paste an image link"
-              className="w-full bg-transparent py-2.5 text-sm outline-none placeholder:text-muted-foreground"
+              className="w-full bg-transparent py-2 text-[13px] outline-none placeholder:text-muted-foreground"
             />
           </div>
         </div>
@@ -111,10 +111,10 @@ export function VisionComposer({
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Topic — e.g. A calm morning routine"
             autoFocus
-            className="w-full rounded-2xl border border-input bg-card px-4 py-3 text-[17px] font-medium outline-none focus:border-ring"
+            className="w-full rounded-2xl border border-border/60 bg-card/70 px-3.5 py-2.5 text-[14px] font-semibold outline-none backdrop-blur-sm focus:border-ring"
           />
 
-          <p className="mb-2 mt-4 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="mb-1.5 mt-3.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Description <span className="font-normal lowercase tracking-normal">(optional)</span>
           </p>
           <RichText
@@ -123,12 +123,15 @@ export function VisionComposer({
             placeholder="Why this matters, how it feels… 💫"
           />
 
-          <div className="mt-5 flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={onCancel}>
+          <div className="mt-4 flex items-center justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={onCancel}>
               Cancel
             </Button>
             <Button
+              size="sm"
               disabled={!canSave}
+              style={{ backgroundColor: "var(--brand-green-strong)" }}
+              className="text-white"
               onClick={() => onSave({ title: title.trim(), description, imageUrl })}
             >
               {initial ? "Save changes" : "Add to board"}

@@ -7,10 +7,11 @@ import { cn } from "@/lib/utils";
 import { ONBOARDING_SLIDES } from "@/lib/content";
 import { useApp } from "@/state/app-context";
 
-export function Onboarding() {
+export function Onboarding({ initialName = "" }: { initialName?: string }) {
   const { completeOnboarding } = useApp();
   const [step, setStep] = useState(0); // 0..slides-1, then name step
-  const [name, setName] = useState("");
+  // Pre-filled when they have just signed up, so the name is never asked twice.
+  const [name, setName] = useState(initialName);
 
   const total = ONBOARDING_SLIDES.length;
   const onNameStep = step === total;

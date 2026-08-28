@@ -45,8 +45,15 @@ export function todayId(d = new Date()) {
   return d.toISOString().slice(0, 10);
 }
 
+// Tasks are stored per day, so any date is addressable — that is what lets the
+// planner's calendar write into a day you pick, and the Dashboard read back
+// today's without the two knowing about each other.
+export function useDayTasks(day: string) {
+  return usePersistentState<Task[]>(KEYS.tasksPrefix + day, []);
+}
+
 export function useTodayTasks() {
-  return usePersistentState<Task[]>(KEYS.tasksPrefix + todayId(), []);
+  return useDayTasks(todayId());
 }
 
 export function useManifestations() {

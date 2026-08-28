@@ -34,7 +34,8 @@ if (tw.status !== 0) {
 let css = await readFile(cssOut, "utf8");
 await rm(tmp, { recursive: true, force: true });
 
-// Inter web font + the --font-inter variable the design system expects.
+// Inter web font + the --font-inter variable the design system expects. The
+// wordmark is artwork, not type, so it needs no face of its own.
 const fontImport =
   "@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');";
 css = `${fontImport}\n:root{--font-inter:'Inter';}\n${css}`;
@@ -47,7 +48,19 @@ const result = await build({
   jsx: "automatic",
   minify: true,
   write: false,
-  define: { "process.env.NODE_ENV": '"production"' },
+  // Next replaces NEXT_PUBLIC_* textually at build time; esbuild does not, so
+  // without this the bundle reaches for `process` in the browser and dies on
+  // load. Empty by default, which exercises the no-keys path; pass real values
+  // in the environment to build a preview wired to Supabase.
+  define: {
+    "process.env.NODE_ENV": '"production"',
+    "process.env.NEXT_PUBLIC_SUPABASE_URL": JSON.stringify(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""
+    ),
+    "process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY": JSON.stringify(
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""
+    ),
+  },
   alias: { "@": resolve(projectRoot, "src") },
   loader: { ".tsx": "tsx", ".ts": "ts" },
   target: ["es2020"],
@@ -73,6 +86,21 @@ const html = `<!doctype html>
 </html>`;
 
 await writeFile(dest, html, "utf8");
+
+// 4) Also emit an Artifact-shaped copy. The Artifact host supplies its own
+// <html>/<head>/<body>, so that file carries only the page content and
+// re-declares on html/body/#root what the standalone build puts on the tags.
+const artifactShim = `
+html{height:100%;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+body{min-height:100%;display:flex;flex-direction:column;background:var(--background);color:var(--foreground);}
+#root{display:flex;flex-direction:column;flex:1 1 auto;}
+`;
+const artifact = `<title>Innerly</title>
+<style>${css}${artifactShim}</style>
+<div id="root"></div>
+<script>${jsInline}</script>
+`;
+await writeFile(join(projectRoot, "Innerly-artifact.html"), artifact, "utf8");
 
 // Also drop a fresh, clearly-named copy in Downloads so it's easy to find/open.
 try {
