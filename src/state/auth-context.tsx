@@ -31,6 +31,17 @@ type AuthState = {
   signInWithGoogle: () => Promise<void>;
   sendReset: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * True between clicking a reset link and choosing a new password. The link
+   * signs you in, so without this the app would let you straight through and
+   * the password you came to change would still be the old one.
+   */
+  recovery: boolean;
+  updatePassword: (password: string) => Promise<void>;
+  resendConfirmation: (email: string) => Promise<void>;
+  /** Why a link from an email did not work — expired, already used, malformed. */
+  linkError: string | null;
+  dismissLinkError: () => void;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -53,7 +64,45 @@ function readable(message: string): string {
     return "Too many tries just now. Wait a minute and try again.";
   if (m.includes("failed to fetch") || m.includes("network"))
     return "Couldn't reach the server. Check your connection and try again.";
+  if (m.includes("expired"))
+    return "That link has expired. Ask for a new one and it'll work.";
+  if (m.includes("same password") || m.includes("should be different"))
+    return "That's the password you already have. Pick a different one.";
   return message;
+}
+
+/**
+ * Supabase reports a bad link by sending you back with the reason in the URL —
+ * in the query for the PKCE flow, in the fragment for the older one. Read both.
+ *
+ * Pure: clearing the URL is a side effect and belongs in an effect, not in the
+ * middle of a render.
+ */
+function readLinkError(): string | null {
+  if (typeof window === "undefined") return null;
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const raw =
+    query.get("error_description") ??
+    query.get("error") ??
+    hash.get("error_description") ??
+    hash.get("error");
+  return raw ? readable(raw.replace(/\+/g, " ")) : null;
+}
+
+/**
+ * Strip a failed link's parameters out of the address bar.
+ *
+ * Only the error ones: a `?code=` is the library's to consume, and removing it
+ * would break every confirmation link. Called before the Supabase client is
+ * built, because a client that still sees the error treats the page load as a
+ * failed callback and rejects getSession().
+ */
+function clearLinkParams() {
+  if (typeof window === "undefined") return;
+  const { search, hash, pathname } = window.location;
+  if (!/[?#&]error/.test(search + hash)) return;
+  window.history.replaceState(window.history.state, "", pathname);
 }
 
 export class AuthError extends Error {}
@@ -65,22 +114,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // a silent token refresh — which fires the same event as a sign-in — does
   // not re-pull and does not blank the screen mid-sentence.
   const [syncedFor, setSyncedFor] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState(false);
+  // Read once as the state is created, so the message survives the URL being
+  // tidied up in the effect below.
+  const [linkError, setLinkError] = useState<string | null>(readLinkError);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
+
+    // Before the client exists, not after: it inspects the URL as it is built.
+    clearLinkParams();
+
     const client = supabase();
 
     // getSession resolves from the stored token; onAuthStateChange then keeps
     // us in step with sign-ins, sign-outs and silent token refreshes — including
     // ones that happen in another tab.
     let cancelled = false;
-    client.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      setSession(data.session);
-      setReady(true);
-    });
+    client.auth
+      .getSession()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setSession(data.session);
+      })
+      .catch(() => {
+        // A rejected getSession must still let the app render. It rejects on a
+        // dead network and on a link that has already been used, and leaving
+        // `ready` false would leave a blank page with nothing to act on.
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
 
-    const { data: sub } = client.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = client.auth.onAuthStateChange((event, next) => {
+      // Fired when a reset link is opened. The session it hands over is real,
+      // which is exactly why the app must stop and ask for a new password
+      // rather than treating this as an ordinary sign-in.
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
       setSession(next);
       setReady(true);
     });
@@ -169,6 +239,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [guard]
   );
 
+  const updatePassword = useCallback(async (password: string) => {
+    const { error } = await guard().auth.updateUser({ password });
+    if (error) throw new AuthError(readable(error.message));
+    setRecovery(false);
+  }, [guard]);
+
+  const resendConfirmation = useCallback(
+    async (email: string) => {
+      const { error } = await guard().auth.resend({
+        type: "signup",
+        email: email.trim(),
+        options: {
+          emailRedirectTo:
+            typeof window !== "undefined" ? window.location.origin : undefined,
+        },
+      });
+      if (error) throw new AuthError(readable(error.message));
+    },
+    [guard]
+  );
+
+  const dismissLinkError = useCallback(() => setLinkError(null), []);
+
   const signOut = useCallback(async () => {
     if (!isSupabaseConfigured) return;
     // Save anything still waiting on its debounce, THEN wipe the device. In
@@ -176,6 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // typed, and must not leave it behind for whoever sits down next.
     await detach();
     setSyncedFor(null);
+    setRecovery(false);
     await supabase().auth.signOut();
   }, []);
 
@@ -191,8 +285,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signInWithGoogle,
       sendReset,
       signOut,
+      recovery,
+      updatePassword,
+      resendConfirmation,
+      linkError,
+      dismissLinkError,
     }),
-    [session, ready, syncedFor, signUp, signIn, signInWithGoogle, sendReset, signOut]
+    [
+      session,
+      ready,
+      syncedFor,
+      recovery,
+      linkError,
+      signUp,
+      signIn,
+      signInWithGoogle,
+      sendReset,
+      signOut,
+      updatePassword,
+      resendConfirmation,
+      dismissLinkError,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
