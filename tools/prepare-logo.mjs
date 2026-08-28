@@ -329,26 +329,19 @@ await writeFile(join(root, "public", "innerly-mark.png"), mark.png);
 // Next serves src/app/icon.png as the browser-tab icon with no extra config.
 await writeFile(join(root, "src", "app", "icon.png"), mark.png);
 
-const aspect = (wordmark.w / wordmark.h).toFixed(4);
-
 await writeFile(
   join(root, "src", "lib", "logo.ts"),
   `// GENERATED — do not edit by hand. See tools/prepare-logo.mjs.
-// The brand assets as data URIs, so they render in the single-file build as
-// well as in the app. Wordmark ${(wordmark.png.length / 1024).toFixed(1)}KB, mark ${(mark.png.length / 1024).toFixed(1)}KB.
-
-export const LOGO_SRC =
-  "data:image/png;base64,${wordmark.png.toString("base64")}";
+// The mark as a data URI, so it renders in the single-file build as well as in
+// the app. ${(mark.png.length / 1024).toFixed(1)}KB.
+//
+// The wordmark is deliberately NOT here: the app shows the mark alone, and
+// carrying its ${(wordmark.png.length / 1024).toFixed(1)}KB of base64 in the bundle would be weight nothing
+// renders. It is still written to public/innerly-logo.png for OG images and
+// anything else outside the bundle.
 
 export const MARK_SRC =
   "data:image/png;base64,${mark.png.toString("base64")}";
-
-// Sampled from the artwork rather than guessed, so anything tinted to match
-// the brand stays in step with it.
-export const LOGO_GREEN = "${wordmark.colour}";
-
-// Width ÷ height of the trimmed wordmark, so callers can size by height alone.
-export const LOGO_ASPECT = ${aspect};
 `
 );
 

@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/innerly/avatar";
 import { Mark } from "@/components/innerly/mark";
-import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useApp, type View } from "@/state/app-context";
@@ -39,16 +38,10 @@ const LIBRARY: NavItem[] = [
   { view: "settings", label: copy.nav.settings, icon: Settings },
 ];
 
-// Mark and wordmark as one lockup. The person is not here: their initial sits
-// at the foot of the sidebar with the streak, which is where account things
-// belong — and two circles side by side read as a mistake, not a pair.
+// The mark alone. Inside the app nobody needs telling which app they are in,
+// and the name is still carried by the tab title and the URL.
 function Brand() {
-  return (
-    <div className="flex items-center gap-2">
-      <Mark size={26} />
-      <Wordmark height={24} />
-    </div>
-  );
+  return <Mark size={30} />;
 }
 
 function NavLink({ item, layoutId }: { item: NavItem; layoutId: string }) {
