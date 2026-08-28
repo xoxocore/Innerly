@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/innerly/avatar";
 import { Mark } from "@/components/innerly/mark";
+import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useApp, type View } from "@/state/app-context";
@@ -38,10 +39,15 @@ const LIBRARY: NavItem[] = [
   { view: "settings", label: copy.nav.settings, icon: Settings },
 ];
 
-// The mark alone. Inside the app nobody needs telling which app they are in,
-// and the name is still carried by the tab title and the URL.
+// The full lockup: jellyfish, then the name. The wordmark carries the alt text,
+// so the mark beside it stays decorative rather than announcing "Innerly" twice.
 function Brand() {
-  return <Mark size={30} />;
+  return (
+    <div className="flex items-center gap-2">
+      <Mark size={28} />
+      <Wordmark height={20} />
+    </div>
+  );
 }
 
 function NavLink({ item, layoutId }: { item: NavItem; layoutId: string }) {

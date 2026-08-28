@@ -9,7 +9,7 @@
 //                 wordmark's rule over it would erase the jellyfish. It gets a
 //                 circular cut-out instead, and its colours are left alone.
 //
-// Writes public/innerly-logo.png, public/innerly-mark.png, src/app/icon.png
+// Writes public/innerly-wordmark.png, public/innerly-mark.png, src/app/icon.png
 // (which Next serves as the browser-tab icon) and src/lib/logo.ts, which
 // carries both as data URIs so they render in the single-file build too.
 //
@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const WORDMARK = join(root, "brand", "innerly-logo-source.png");
+const WORDMARK = join(root, "brand", "innerly-wordmark-source.png");
 const MARK = join(root, "brand", "innerly-mark-source.png");
 
 const WORDMARK_HEIGHT = 240; // crisp at 3x the largest place it is used (~40px)
@@ -324,7 +324,7 @@ function buildMark(img) {
 const wordmark = buildWordmark(decodePng(await readFile(WORDMARK)));
 const mark = buildMark(decodePng(await readFile(MARK)));
 
-await writeFile(join(root, "public", "innerly-logo.png"), wordmark.png);
+await writeFile(join(root, "public", "innerly-wordmark.png"), wordmark.png);
 await writeFile(join(root, "public", "innerly-mark.png"), mark.png);
 // Next serves src/app/icon.png as the browser-tab icon with no extra config.
 await writeFile(join(root, "src", "app", "icon.png"), mark.png);
@@ -332,16 +332,17 @@ await writeFile(join(root, "src", "app", "icon.png"), mark.png);
 await writeFile(
   join(root, "src", "lib", "logo.ts"),
   `// GENERATED — do not edit by hand. See tools/prepare-logo.mjs.
-// The mark as a data URI, so it renders in the single-file build as well as in
-// the app. ${(mark.png.length / 1024).toFixed(1)}KB.
-//
-// The wordmark is deliberately NOT here: the app shows the mark alone, and
-// carrying its ${(wordmark.png.length / 1024).toFixed(1)}KB of base64 in the bundle would be weight nothing
-// renders. It is still written to public/innerly-logo.png for OG images and
-// anything else outside the bundle.
+// The brand assets as data URIs, so they render in the single-file build as
+// well as in the app. Mark ${(mark.png.length / 1024).toFixed(1)}KB, wordmark ${(wordmark.png.length / 1024).toFixed(1)}KB.
 
 export const MARK_SRC =
   "data:image/png;base64,${mark.png.toString("base64")}";
+
+export const LOGO_SRC =
+  "data:image/png;base64,${wordmark.png.toString("base64")}";
+
+// Width ÷ height of the trimmed wordmark, so callers can size by height alone.
+export const LOGO_ASPECT = ${(wordmark.w / wordmark.h).toFixed(4)};
 `
 );
 
