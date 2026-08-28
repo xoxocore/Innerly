@@ -67,4 +67,15 @@ select 'published posts are the only thing the world can read',
                     and tablename <> 'posts') = 0
             then 'PASS' else 'FAIL: a table other than posts is world-readable' end
 union all
+select 'vision photos live in a private bucket',
+       case when exists (
+              select 1 from storage.buckets where id = 'visions' and public = false)
+            then 'PASS' else 'FAIL: the visions bucket is missing or is public' end
+union all
+select 'a photo is readable only by whoever uploaded it',
+       case when (select count(distinct cmd) from pg_policies
+                  where schemaname = 'storage' and tablename = 'objects'
+                    and qual like '%auth.uid()%' and qual like '%visions%') >= 3
+            then 'PASS' else 'FAIL: run 0002_storage.sql' end
+union all
 select 'accounts on the admin allowlist', (select count(*)::text from public.admins);

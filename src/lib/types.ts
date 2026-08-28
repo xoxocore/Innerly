@@ -125,6 +125,7 @@ function normVisionItem(raw: unknown): VisionItem | null {
           ? (o.topic as string)
           : "",
     description: typeof o.description === "string" ? o.description : undefined,
+    imagePath: typeof o.imagePath === "string" ? o.imagePath : undefined,
     imageUrl:
       typeof o.imageUrl === "string"
         ? o.imageUrl
@@ -245,7 +246,19 @@ export type VisionItem = {
   id: string;
   title: string; // topic
   description?: string; // rich-text HTML
-  imageUrl?: string; // data URL (uploaded) or external link
+  /**
+   * Where the uploaded photo lives in Supabase Storage, as `<user-id>/<file>`.
+   * This is the durable one. The bucket is private, so it cannot be rendered
+   * directly — useVisionBoard() signs it into `imageUrl` on the way out.
+   */
+  imagePath?: string;
+  /**
+   * An external link, a legacy data URL from before Storage existed, or — once
+   * useVisionBoard() has resolved `imagePath` — a signed URL. The signed case
+   * expires within the hour, which is why it is never persisted alongside an
+   * `imagePath`.
+   */
+  imageUrl?: string;
   gradient?: [string, string];
   createdAt?: string;
 };

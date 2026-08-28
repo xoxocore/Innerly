@@ -9,7 +9,13 @@ import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { gradient } from "@/lib/content";
 import { ACCENTS, type VisionItem, type VisionYear } from "@/lib/types";
-import { useVisionBoard, uid } from "@/state/use-data";
+import { useVisionBoard, useVisionImageMigration, uid } from "@/state/use-data";
+import {
+  deleteVisionImages,
+  isDataUrl,
+  storageEnabled,
+  uploadVisionImage,
+} from "./vision-images";
 import { VisionComposer, type VisionDraft } from "./vision-composer";
 import { VisionLightbox } from "./vision-lightbox";
 import { stripHtml } from "./image";
@@ -17,7 +23,8 @@ import { stripHtml } from "./image";
 const c = copy.visionBoard;
 
 export function VisionBoard() {
-  const [years, setYears] = useVisionBoard();
+  const [years, setYears, hydrated] = useVisionBoard();
+  useVisionImageMigration(years, setYears, hydrated);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [addingYear, setAddingYear] = useState(false);
   const [yearInput, setYearInput] = useState("");
@@ -40,27 +47,65 @@ export function VisionBoard() {
   };
 
   const deleteYear = (id: string) => {
+    // Take the photos with it, or the bucket fills with files nothing points at.
+    const doomed = years.find((y) => y.id === id);
+    const paths = (doomed?.items ?? [])
+      .map((i) => i.imagePath)
+      .filter((p): p is string => !!p);
+    if (paths.length) void deleteVisionImages(paths);
+
     setYears((prev) => prev.filter((y) => y.id !== id));
     setSelectedId(null);
   };
 
-  const saveDraft = (draft: VisionDraft) => {
+  const saveDraft = async (draft: VisionDraft) => {
     if (!active) return;
+    const itemId = editing?.id ?? uid();
+
+    // The composer hands back a data URL so the preview is instant and works
+    // offline. Uploading here rather than at pick time means a compose that
+    // gets cancelled leaves nothing behind in the bucket.
+    //
+    // `draft.imagePath` set means the photo was not touched — keep it as is.
+    let imagePath = draft.imagePath;
+    let imageUrl = draft.imageUrl || undefined;
+    if (isDataUrl(imageUrl) && storageEnabled()) {
+      const path = await uploadVisionImage(imageUrl as string, itemId);
+      if (path) {
+        imagePath = path;
+        imageUrl = undefined;
+      }
+      // Upload failed: keep the data URL. A photo held only in this browser
+      // beats losing the photo.
+    }
+
     if (editing) {
+      // Whatever the old photo was, if it is no longer referenced it has to go
+      // or the bucket fills with files nothing points at.
+      const previous = editing.imagePath;
+      if (previous && previous !== imagePath) void deleteVisionImages([previous]);
+
       patchYear(active.id, {
         items: active.items.map((it) =>
           it.id === editing.id
-            ? { ...it, title: draft.title, description: draft.description, imageUrl: draft.imageUrl }
+            ? {
+                ...it,
+                title: draft.title,
+                description: draft.description,
+                imagePath,
+                imageUrl,
+              }
             : it
         ),
       });
     } else {
       const accent = ACCENTS[active.items.length % ACCENTS.length];
       const item: VisionItem = {
-        id: uid(),
+        id: itemId,
         title: draft.title,
         description: draft.description,
-        imageUrl: draft.imageUrl || undefined,
+        imagePath,
+        imageUrl,
         gradient: [...accent] as [string, string],
         createdAt: new Date().toISOString(),
       };
@@ -72,6 +117,8 @@ export function VisionBoard() {
 
   const removeItem = (itemId: string) => {
     if (!active) return;
+    const gone = active.items.find((i) => i.id === itemId);
+    if (gone?.imagePath) void deleteVisionImages([gone.imagePath]);
     const rest = active.items.filter((i) => i.id !== itemId);
     patchYear(active.id, { items: rest });
     // Stay in the deck if anything is left, landing on the neighbour.
@@ -126,13 +173,21 @@ export function VisionBoard() {
               e.preventDefault();
               addYear();
             }}
+            // Blur closes an empty form, but only when focus leaves the form
+            // altogether. On the input alone, clicking Add blurs it first and
+            // the form unmounted before the click landed — so the button did
+            // nothing, and the default year it falls back to was unreachable.
+            onBlur={(e) => {
+              if (!yearInput && !e.currentTarget.contains(e.relatedTarget)) {
+                setAddingYear(false);
+              }
+            }}
             className="flex items-center gap-2 rounded-full border border-border/70 bg-card py-0.5 pl-3.5 pr-1"
           >
             <input
               autoFocus
               value={yearInput}
               onChange={(e) => setYearInput(e.target.value)}
-              onBlur={() => !yearInput && setAddingYear(false)}
               placeholder="e.g. 2028"
               className="w-16 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground"
             />
@@ -213,7 +268,10 @@ export function VisionBoard() {
                       ? {
                           title: editing.title,
                           description: editing.description ?? "",
+                          // imageUrl here is the signed preview; imagePath is
+                          // what comes back if the photo is left alone.
                           imageUrl: editing.imageUrl,
+                          imagePath: editing.imagePath,
                         }
                       : undefined
                   }
