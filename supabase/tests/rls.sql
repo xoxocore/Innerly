@@ -12,9 +12,18 @@
 -- Every line must read "want" and match. Two errors are expected and are the
 -- point: a forged insert and a self-promotion to admin are refused outright.
 
+-- Supabase grants these to its two roles automatically; a bare Postgres does
+-- not, and without them every query below fails on permissions rather than on
+-- the policies we are here to test.
+grant usage on schema public, storage to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant select, insert, update, delete on all tables in schema storage to authenticated;
+grant select on all tables in schema public, storage to anon;
+
 insert into auth.users (id, email) values
   ('11111111-1111-1111-1111-111111111111', 'aisha@example.com'),
-  ('22222222-2222-2222-2222-222222222222', 'ben@example.com');
+  ('22222222-2222-2222-2222-222222222222', 'ben@example.com')
+on conflict (id) do nothing;
 
 -- Aisha writes something private, exactly as the app would.
 set role authenticated;
