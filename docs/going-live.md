@@ -16,30 +16,28 @@ Your project is `iiemqvxpnurfazhmlscp`; the dashboard is at
 ## Already done
 
 - Supabase project created, `0001_init.sql` and `0002_storage.sql` run.
-- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` set in Vercel.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` set in Vercel
+  — **check both are ticked for Production, not only Preview.** If they are
+  Preview-only, the live site quietly runs the old no-accounts version and
+  shows the welcome screen instead of sign-in, which looks like a failed
+  deploy but is not one.
+- Accounts, sync, private photo storage and password reset are all merged to
+  `main`, so the live site builds from them.
 
 ---
 
-## 1. Add the table the app writes to — 2 minutes
+## 1. Finish the database — one paste, 2 minutes
 
-**SQL Editor → New query.** Paste all of
-`supabase/migrations/0003_user_state.sql` and press Run.
+**SQL Editor → New query.** Paste all of `supabase/setup.sql` and press Run.
 
-This is where people's writing goes. Until it exists, someone can make an
-account, but nothing they write reaches it.
+It adds the table your writing is stored in, then checks every lock and prints
+the result. **Every row must say PASS.** If one says FAIL it names what is
+wrong — send me that line and stop there.
 
-## 2. Check the locks — 1 minute
+Safe to run more than once, and safe on a live project, so re-run it whenever
+you want to check.
 
-**SQL Editor → New query.** Paste all of `supabase/verify.sql` and Run.
-
-You get a short table. **Every row must say PASS.** If any says FAIL it names
-what is wrong; send me that line and stop here — do not let anyone sign up
-with a FAIL showing.
-
-This file only reads, so you can re-run it any time, on a live project, as
-often as you like.
-
-## 3. Give Supabase a real way to send email — 15 minutes
+## 2. Give Supabase a real way to send email — 15 minutes
 
 **This is the step that catches people out.** Supabase's built-in email sender
 is for testing: it is capped at a handful of messages an hour, and over that
@@ -71,7 +69,7 @@ Use [Resend](https://resend.com) (free for 3,000 emails a month):
 **Check:** Supabase → **Authentication → Users → Invite user**, send one to
 your own address. It should arrive within a minute, from your domain.
 
-## 4. Point the confirmation links at the real site — 3 minutes
+## 3. Point the confirmation links at the real site — 3 minutes
 
 **Authentication → URL Configuration.**
 
@@ -84,7 +82,7 @@ Without this, the link inside every confirmation email points at
 `localhost:3000`, which only works on the machine that sent it. Everyone else
 clicks it and lands nowhere.
 
-## 5. Tighten the password rules — 2 minutes
+## 4. Tighten the password rules — 2 minutes
 
 **Authentication → Providers → Email:** *Confirm email* must be ON. This is
 what stops someone signing up as an address they do not own.
@@ -97,7 +95,7 @@ Passwords*):
   known breached ones, so nobody protects their journal with a password that
   is already on a list somewhere.
 
-## 6. Google sign-in — 15 minutes
+## 5. Google sign-in — 15 minutes
 
 The button is already in the app; it needs credentials behind it.
 
@@ -116,9 +114,9 @@ The button is already in the app; it needs credentials behind it.
 "redirect_uri_mismatch", step 4 does not match — it must be that URL exactly,
 no trailing slash.
 
-## 7. Make yourself the admin — 2 minutes
+## 6. Make yourself the admin — 2 minutes
 
-Do this *after* step 3, or the confirmation email will not arrive.
+Do this *after* step 2, or the confirmation email will not arrive.
 
 1. Open the live site and sign up with your own email. Confirm it.
 2. Supabase → **SQL Editor**, run:
@@ -129,19 +127,16 @@ Do this *after* step 3, or the confirmation email will not arrive.
    select id from auth.users where email = 'you@example.com';
    ```
 
-3. Re-run `supabase/verify.sql`. The last row should now read `1`.
+3. Re-run `supabase/setup.sql`. The last row should now read `1`.
 
 Admin rights come only from this table. Nothing anyone types during signup can
 grant them, which is what keeps the admin area closed.
 
-## 8. Tell me when to merge
+## 7. Sign in and use it
 
-Everything so far has been on a preview build. Production
-(`innerly-sooty.vercel.app`) still runs the old code from `main` and has no
-accounts at all. Say the word and I will merge — I have not, because putting
-sign-up in front of the public is your call, not mine.
-
----
+Once 1 through 4 are done, the site is a working app: create an account,
+confirm the email, and you are in. Google sign-in (step 5) and the admin row
+(step 6) can follow whenever.
 
 ## What "only you can read it" actually means
 
