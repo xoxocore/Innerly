@@ -238,7 +238,7 @@ function downscale(src, w, h, outW, outH) {
 // spread — 255 on the ground, near zero in the ink) to recover alpha. A plain
 // threshold would leave a white fringe on every anti-aliased edge.
 function buildWordmark(img) {
-  const { width, height, channels, data } = img;
+  const { width, height, data } = img;
   const { minX: bx, minY: by, maxX: bX, maxY: bY, ink, at } = inspect(img);
 
   const minX = Math.max(0, bx - PAD);
@@ -281,7 +281,7 @@ function buildWordmark(img) {
 // The radius is pulled in a hair to drop the source's own anti-aliased rim,
 // which is part-white and would otherwise read as a pale halo on a dark page.
 function buildMark(img) {
-  const { width, height, channels, data } = img;
+  const { data } = img;
   const { minX, minY, maxX, maxY, ink, at } = inspect(img);
 
   const w = maxX - minX + 1;
