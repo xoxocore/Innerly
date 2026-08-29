@@ -5,7 +5,13 @@ import { Loader2, Search, Ban, RotateCcw, Trash2, X } from "lucide-react";
 import { Avatar } from "@/components/innerly/avatar";
 import { useAuth } from "@/state/auth-context";
 import { cn } from "@/lib/utils";
-import { actOnAccount, useAccounts, type Account } from "./use-admin";
+import {
+  actOnAccount,
+  agoLabel,
+  isOnline,
+  useAccounts,
+  type Account,
+} from "./use-admin";
 
 type Pending = { account: Account; action: "suspend" | "unsuspend" | "delete" };
 
@@ -74,6 +80,13 @@ export function Accounts() {
 
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-2 truncate text-[13.5px] font-medium text-heading">
+                    {isOnline(a.last_active_at) && (
+                      <span
+                        title="Using Innerly right now"
+                        aria-label="Using Innerly right now"
+                        className="h-2 w-2 shrink-0 rounded-full bg-[var(--brand-green)]"
+                      />
+                    )}
                     {a.first_name || "—"}
                     {a.suspended && (
                       <span className="rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-destructive">
@@ -91,7 +104,10 @@ export function Accounts() {
 
                 <div className="flex shrink-0 gap-6 text-[11.5px] text-muted-foreground">
                   <Field label="Joined" value={shortDate(a.signed_up_at)} />
-                  <Field label="Last seen" value={a.last_seen ? shortDate(a.last_seen) : "never"} />
+                  <Field
+                    label="Last seen"
+                    value={agoLabel(a.last_active_at ?? a.last_seen)}
+                  />
                   <Field label="Days used" value={String(a.days_active)} />
                 </div>
 

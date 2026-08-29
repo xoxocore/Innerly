@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { KEYS, storage, usePersistentState } from "@/lib/storage";
+import { startPresence } from "@/lib/presence";
 import type { Profile } from "@/lib/types";
 
 export type View =
@@ -66,6 +67,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (night) root.classList.add("dark");
     else root.classList.remove("dark");
   }, [night]);
+
+  // Tell the server the app was opened, so the admin panel's activity figures
+  // have something behind them. Local storage already knew; the table did not.
+  useEffect(() => {
+    if (!profile) return;
+    return startPresence();
+  }, [profile]);
 
   // Track usage days -> streak (consecutive calendar days the app was opened).
   useEffect(() => {
