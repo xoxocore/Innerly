@@ -3,6 +3,7 @@
 import { useApp } from "@/state/app-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AppShell } from "@/features/app-shell/app-shell";
+import { Tour } from "@/features/tour/tour";
 import { Dashboard } from "@/features/dashboard/dashboard";
 import { Reflect } from "@/features/reflect/reflect";
 import { DailyPlan } from "@/features/daily-plan/daily-plan";
@@ -30,6 +31,7 @@ export function AppRouter() {
         {route.view === "history" && <History />}
         {route.view === "settings" && <Settings />}
       </ErrorBoundary>
+      <Tour />
     </AppShell>
   );
 }

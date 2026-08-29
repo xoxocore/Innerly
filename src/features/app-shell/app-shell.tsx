@@ -57,6 +57,7 @@ function NavLink({ item, layoutId }: { item: NavItem; layoutId: string }) {
   return (
     <button
       onClick={() => navigate(item.view)}
+      data-tour={`nav-${item.view}`}
       className={cn(
         "group relative flex items-center gap-3 whitespace-nowrap rounded-xl px-3 py-2 text-[13px] transition-colors",
         active
@@ -81,7 +82,7 @@ function StreakNightRow() {
   const { night, toggleNight, streak, profile } = useApp();
   const label = streak === 1 ? copy.brand.streakSingular : copy.brand.streakPlural;
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex items-center justify-between gap-3" data-tour="streak">
       <div className="flex min-w-0 items-center gap-2.5">
         <Avatar name={profile?.firstName} className="h-9 w-9 text-sm" />
         <span className="min-w-0 truncate text-[13px] text-muted-foreground">

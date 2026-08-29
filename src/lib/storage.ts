@@ -17,6 +17,8 @@ export const KEYS = {
   usageDays: "innerly:usage-days",
   remindersChecked: "innerly:reminders-checked",
   welcome: "innerly:welcome",
+  // Whether the first-run walkthrough has been seen or skipped.
+  tourSeen: "innerly:tour-seen",
   tasksPrefix: "innerly:tasks:",
   // Activities are derived from your data, so "deleting" one hides it here
   // rather than destroying the vision, goal or task behind it.
