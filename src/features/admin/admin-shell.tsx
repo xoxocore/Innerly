@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, LogOut, ScrollText, Users } from "lucide-react";
+import { BarChart3, LogOut, PenLine, ScrollText, Users } from "lucide-react";
 import { Mark } from "@/components/innerly/mark";
 import { Wordmark } from "@/components/innerly/wordmark";
 import { cn } from "@/lib/utils";
@@ -9,10 +9,12 @@ import { useAuth } from "@/state/auth-context";
 import { Overview } from "./overview";
 import { Accounts } from "./accounts";
 import { ActivityLog } from "./activity-log";
+import { Writing } from "./writing";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3, view: Overview },
   { id: "accounts", label: "Accounts", icon: Users, view: Accounts },
+  { id: "writing", label: "Writing", icon: PenLine, view: Writing },
   { id: "log", label: "Activity", icon: ScrollText, view: ActivityLog },
 ] as const;
 
