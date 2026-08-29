@@ -207,7 +207,7 @@ Named so nothing is a surprise later:
 
 - **Live sync between two open devices.** Today, a second device sees changes
   after a reload, and the later write wins.
-- **Publishing from the admin panel.** The `posts` table and its bucket exist
-  and are locked correctly, but the Blog and Tutorials screens still read a
-  hardcoded list in `src/lib/content.ts`. Writing posts in the panel, and
-  switching those screens to read them, is the next piece.
+- **Notifications** — composing, scheduling, and the triggered ones
+  ("welcome back", "did you know?").
+- **A newsletter**, once there is a marketing site with somewhere to sign up.
+- **Website traffic** — turn on Vercel Analytics rather than building it.
