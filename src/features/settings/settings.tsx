@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LogOut } from "lucide-react";
+import { Compass, LogOut } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScreenHeader } from "@/components/innerly/screen-header";
@@ -11,6 +11,7 @@ import { KEYS, usePersistentState } from "@/lib/storage";
 import { DEFAULT_PREFS, type Prefs } from "@/lib/types";
 import { useApp } from "@/state/app-context";
 import { useAuth } from "@/state/auth-context";
+import { restartTour } from "@/features/tour/tour";
 
 const c = copy.settings;
 
@@ -52,7 +53,7 @@ function Toggle({
 }
 
 export function Settings() {
-  const { profile, setProfile, signOut, night, toggleNight } = useApp();
+  const { profile, setProfile, signOut, night, toggleNight, navigate } = useApp();
   const { signOut: endSession, user } = useAuth();
   const [prefs, setPrefs] = usePersistentState<Prefs>(KEYS.prefs, DEFAULT_PREFS);
   const [name, setName] = useState(profile?.firstName ?? "");
@@ -123,6 +124,25 @@ export function Settings() {
               onChange={() => update({ weeklyReport: !prefs.weeklyReport })}
             />
           </div>
+        </Card>
+
+        {/* Show me around again */}
+        <Card className="p-6">
+          <h2 className="text-lg font-medium text-heading">The tour</h2>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            A short walk through what each part of Innerly is for. Takes about
+            thirty seconds.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => {
+              restartTour();
+              navigate("dashboard");
+            }}
+          >
+            <Compass className="h-4 w-4" /> Show me around again
+          </Button>
         </Card>
 
         {/* Account */}
