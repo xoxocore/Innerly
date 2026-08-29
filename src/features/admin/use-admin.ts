@@ -11,6 +11,7 @@ export type Account = {
   confirmed: boolean;
   provider: string;
   last_seen: string | null;
+  last_active_at: string | null;
   days_active: number;
   suspended: boolean;
 };
@@ -23,6 +24,7 @@ export type Stats = {
   suspended: number;
   new_7d: number;
   new_30d: number;
+  online_now: number;
   active_today: number;
   active_7d: number;
   active_30d: number;
@@ -47,7 +49,12 @@ export type AdminAction = {
  * allowlist themselves and raise if the caller is not on it. The browser holds
  * no special key: an ordinary session that happens to belong to an admin.
  */
-function useRemote<T>(load: () => Promise<T>) {
+/**
+ * @param everyMs re-read on a timer, for the figures that go stale while you
+ *   are looking at them. Paused when the tab is in the background: nobody
+ *   needs a panel polling from a window they cannot see.
+ */
+function useRemote<T>(load: () => Promise<T>, everyMs?: number) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -80,15 +87,32 @@ function useRemote<T>(load: () => Promise<T>) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nonce]);
 
+  useEffect(() => {
+    if (!everyMs) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    const timer = setInterval(tick, everyMs);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [everyMs, refresh]);
+
   return { data, error, loading, refresh };
 }
+
+// Half a minute is often enough to watch somebody arrive, and slow enough
+// that a panel left open all day is not a load on anything.
+const LIVE = 30_000;
 
 export function useAccounts() {
   return useRemote<Account[]>(async () => {
     const { data, error } = await supabase().rpc("admin_accounts");
     if (error) throw new Error(error.message);
     return (data ?? []) as Account[];
-  });
+  }, LIVE);
 }
 
 export function useStats() {
@@ -96,7 +120,33 @@ export function useStats() {
     const { data, error } = await supabase().rpc("admin_stats");
     if (error) throw new Error(error.message);
     return data as Stats;
+  }, LIVE);
+}
+
+/**
+ * "3 minutes ago" rather than a date. Precise where it matters (someone here
+ * now) and vague where it does not (someone last here in March).
+ */
+export function agoLabel(iso: string | null): string {
+  if (!iso) return "never";
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 90) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days} ${days === 1 ? "day" : "days"} ago`;
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "2-digit",
   });
+}
+
+/** Here in the last five minutes — the window the database counts as "now". */
+export function isOnline(iso: string | null): boolean {
+  return !!iso && Date.now() - new Date(iso).getTime() < 5 * 60 * 1000;
 }
 
 export function useActionLog() {
