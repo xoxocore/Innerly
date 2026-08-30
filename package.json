@@ -12,7 +12,8 @@
     "test:vision": "node tools/test-vision-images.mjs",
     "test": "npm run test:sync && npm run test:vision",
     "test:auth": "node tools/test-auth.mjs",
-    "test:publishing": "node tools/test-publishing.mjs"
+    "test:publishing": "node tools/test-publishing.mjs",
+    "test:notifications": "node tools/test-notifications.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",
