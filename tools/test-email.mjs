@@ -48,6 +48,13 @@ let savedCampaign = null;
  * about anything a check looks at.
  */
 const posted = [];
+// Flipped on to make the stand-in behave like Resend before a domain is
+// verified: it refuses anything addressed to somebody other than the account
+// holder. This is the state every new account starts in.
+let noDomainYet = false;
+const campaignRow = { id: "c-1", subject: "Something new, {name}",
+  preheader: "A small thing", body: "<p>We added a tour for new people.</p>",
+  audience: "everyone", status: "draft", delivered: 0 };
 const stub = createServer((req, res) => {
   let raw = "";
   req.on("data", (c) => (raw += c));
@@ -59,7 +66,15 @@ const stub = createServer((req, res) => {
     };
 
     if (path === "/emails/batch") {
-      posted.push(...JSON.parse(raw || "[]"));
+      const msgs = JSON.parse(raw || "[]");
+      if (noDomainYet && msgs.some((m) => m.to[0] !== OWNER.email)) {
+        res.writeHead(403, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ statusCode: 403, name: "validation_error",
+          message: "You can only send testing emails to your own email address " +
+            "(owner@example.com). To send emails to other recipients, please " +
+            "verify a domain at resend.com/domains" }));
+      }
+      posted.push(...msgs);
       return send({ data: [] });
     }
     if (path === "/auth/v1/user") return send(mkUser());
@@ -67,14 +82,20 @@ const stub = createServer((req, res) => {
     if (path === "/rest/v1/rpc/is_admin") return send(true);
     if (path === "/rest/v1/email_prefs") return send({ marketing: true, token: "tok-1" });
     if (path === "/rest/v1/email_campaigns") {
-      return send(req.method === "GET"
-        ? { id: "c-1", subject: "Something new, {name}", preheader: "A small thing",
-            body: "<p>We added a tour for new people.</p>", audience: "everyone",
-            status: "draft" }
-        : {});
+      if (req.method === "GET") return send(campaignRow);
+      // The route writes the outcome back; keep it, so a second attempt sees
+      // exactly what a real second attempt would.
+      Object.assign(campaignRow, JSON.parse(raw || "{}"));
+      return send(campaignRow);
     }
     if (path === "/rest/v1/rpc/email_recipients") {
-      return send([{ user_id: OWNER.id, email: OWNER.email, first_name: "Divya", token: "tok-1" }]);
+      // Two people, one of them not the account holder — otherwise the
+      // unverified-domain refusal below could never fire.
+      return send([
+        { user_id: OWNER.id, email: OWNER.email, first_name: "Divya", token: "tok-1" },
+        { user_id: "11111111-1111-1111-1111-111111111111",
+          email: "aisha@example.com", first_name: "Aisha", token: "tok-2" },
+      ]);
     }
     return send({});
   });
@@ -274,6 +295,86 @@ async function mock(page) {
     /password reset/i.test(text));
   await p.screenshot({ path: "unsubscribe.png" });
   check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* --------------------------------------- sending before you own a domain -- */
+{
+  // Every Resend account starts here, and it is where somebody setting Innerly
+  // up for the first time will be. Getting told plainly, and not losing the
+  // newsletter, is the whole of it.
+  noDomainYet = true;
+  Object.assign(campaignRow, { status: "draft", delivered: 0 });
+
+  // Driven from a signed-in page, because the route checks who is asking
+  // before it checks anything else — a bare fetch is turned away at the door.
+  const p = await (await b.newContext()).newPage();
+  await mock(p);
+  await p.goto("http://localhost:3000/admin", { waitUntil: "networkidle" });
+  await p.waitForTimeout(600);
+  await p.getByPlaceholder("Email").fill(OWNER.email);
+  await p.getByPlaceholder("Password").fill("x");
+  await p.getByRole("button", { name: /Sign in/ }).click();
+  await p.waitForTimeout(1500);
+
+  const post = (test) => p.evaluate(async (t) => {
+    const r = await fetch("/api/admin/email", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ campaignId: "c-1", test: t }),
+    });
+    return { status: r.status, body: await r.json() };
+  }, test);
+
+  const first = await post(false);
+  check("sending with no domain is refused", first.body.delivered === 0,
+    JSON.stringify(first.body).slice(0, 90));
+  check("...and says why, in words that help",
+    /domain isn.t verified/i.test(first.body.error || ""), first.body.error);
+  check("...pointing at where to fix it",
+    /resend\.com\/domains/.test(first.body.error || ""));
+  check("...promising nothing went out", /nothing has gone out/i.test(first.body.error || ""));
+  check("...and the campaign is not stamped as sent", campaignRow.sent_at === null,
+    String(campaignRow.sent_at));
+
+  // The thing that actually matters: it can be sent once a domain exists.
+  const second = await post(false);
+  check("it is NOT locked as already-sent", second.status !== 409,
+    `HTTP ${second.status}: ${second.body.error || ""}`);
+
+  noDomainYet = false;
+  const third = await post(false);
+  check("and once the domain is verified it goes", third.body.delivered === 2,
+    JSON.stringify(third.body).slice(0, 90));
+
+  // Now it really has gone out, so it must refuse to go again.
+  const fourth = await post(false);
+  check("after a real send it refuses to repeat", fourth.status === 409, `HTTP ${fourth.status}`);
+  check("...and says who already has it",
+    /already gone out to 2 people/.test(fourth.body.error || ""), fourth.body.error);
+  // And what somebody actually sees: the composer must stay put and say so,
+  // rather than closing as though the newsletter went out.
+  noDomainYet = true;
+  Object.assign(campaignRow, { status: "draft", delivered: 0, sent_at: null });
+  await p.goto("http://localhost:3000/admin", { waitUntil: "networkidle" });
+  await p.waitForTimeout(1200);
+  await p.getByRole("button", { name: /^Email$/ }).click();
+  await p.waitForTimeout(700);
+  await p.getByRole("button", { name: /Write one/ }).click();
+  await p.waitForTimeout(700);
+  await p.locator('input[aria-label="Subject"]').fill("Hello everyone");
+  await p.locator(".post-body[contenteditable]").click();
+  await p.keyboard.type("A first newsletter.");
+  await p.waitForTimeout(500);
+  await p.getByRole("button", { name: /Send to \d/ }).click();
+  await p.waitForTimeout(500);
+  await p.getByRole("button", { name: /^Send it$|Send now|Yes/ }).first().click();
+  await p.waitForTimeout(2000);
+  const shown = await p.locator("body").innerText();
+  check("the composer says so on screen rather than closing",
+    /domain isn.t verified/i.test(shown), shown.split("\n").find((l) => /domain/i.test(l)));
+  check("...and the draft is still there to send later",
+    (await p.locator('input[aria-label="Subject"]').inputValue()) === "Hello everyone");
+  await p.screenshot({ path: "email-nodomain.png" });
   await p.close();
 }
 
