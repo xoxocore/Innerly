@@ -203,8 +203,6 @@ export const copy = {
     notifAllowDesc: "Gentle nudges and reminders from Innerly.",
     notifDailyLabel: "Daily reflection reminder",
     notifDailyDesc: "A quiet evening prompt to check in.",
-    notifWeeklyLabel: "Weekly report",
-    notifWeeklyDesc: "Your 7-day summary of growth and patterns.",
   },
 } as const;
 

@@ -18,13 +18,23 @@ import { KEYS, storage } from "@/lib/storage";
 const FIVE_MINUTES = 5 * 60 * 1000;
 let lastSent = 0;
 let backfilled = false;
+let stopped = false;
+
+/**
+ * Called when somebody pauses their account, for the moment between that and
+ * the sign-out that follows. Without it the heartbeat could un-pause them in
+ * the same breath.
+ */
+export function suspendPresence() {
+  stopped = true;
+}
 
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
 export async function recordVisit() {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured || stopped) return;
   const userId = currentUserId();
   if (!userId) return;
 
@@ -54,9 +64,13 @@ export async function recordVisit() {
     .from("usage_days")
     .upsert({ user_id: userId, day: today() }, { onConflict: "user_id,day" });
 
+  // Being here is what ends a pause. Somebody who stepped away and came back
+  // should not have to find a button for it, and there is nowhere else that
+  // reliably knows they returned — a session restored from a cookie is not a
+  // sign-in event.
   await client
     .from("profiles")
-    .update({ last_active_at: new Date().toISOString() })
+    .update({ last_active_at: new Date().toISOString(), deactivated_at: null })
     .eq("id", userId);
 }
 
