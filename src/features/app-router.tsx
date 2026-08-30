@@ -4,6 +4,8 @@ import { useApp } from "@/state/app-context";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { AppShell } from "@/features/app-shell/app-shell";
 import { Tour } from "@/features/tour/tour";
+import { NotificationProvider } from "@/features/notifications/store";
+import { Toaster } from "@/features/notifications/toaster";
 import { Dashboard } from "@/features/dashboard/dashboard";
 import { Reflect } from "@/features/reflect/reflect";
 import { DailyPlan } from "@/features/daily-plan/daily-plan";
@@ -18,20 +20,25 @@ export function AppRouter() {
   const { route } = useApp();
 
   return (
-    <AppShell>
-      {/* keyed per view so navigating to another screen always recovers */}
-      <ErrorBoundary key={route.view}>
-        {route.view === "dashboard" && <Dashboard />}
-        {route.view === "reflect" && <Reflect />}
-        {route.view === "daily-plan" && <DailyPlan />}
-        {route.view === "manifestation" && <Manifestation />}
-        {route.view === "vision-board" && <VisionBoard />}
-        {route.view === "blog" && <Blog />}
-        {route.view === "tutorials" && <Tutorials />}
-        {route.view === "history" && <History />}
-        {route.view === "settings" && <Settings />}
-      </ErrorBoundary>
-      <Tour />
-    </AppShell>
+    // Wraps the shell so the bell in the header and the toasts over the page
+    // read the same list. Two copies would deliver a message twice.
+    <NotificationProvider>
+      <AppShell>
+        {/* keyed per view so navigating to another screen always recovers */}
+        <ErrorBoundary key={route.view}>
+          {route.view === "dashboard" && <Dashboard />}
+          {route.view === "reflect" && <Reflect />}
+          {route.view === "daily-plan" && <DailyPlan />}
+          {route.view === "manifestation" && <Manifestation />}
+          {route.view === "vision-board" && <VisionBoard />}
+          {route.view === "blog" && <Blog />}
+          {route.view === "tutorials" && <Tutorials />}
+          {route.view === "history" && <History />}
+          {route.view === "settings" && <Settings />}
+        </ErrorBoundary>
+        <Tour />
+        <Toaster />
+      </AppShell>
+    </NotificationProvider>
   );
 }

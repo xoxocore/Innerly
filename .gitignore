@@ -52,3 +52,8 @@ next-env.d.ts
 # throwaway v48 extraction outputs (scripts in tools/ are kept)
 /tools/v48-*.json
 /tools/v48-*.txt
+
+# screenshots the e2e scripts drop beside them — evidence while you read the
+# run, not something to keep
+/*.png
+!/brand/*.png

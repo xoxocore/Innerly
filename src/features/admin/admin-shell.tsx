@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BarChart3, Bell, LogOut, PenLine, ScrollText, Users } from "lucide-react";
+import { BarChart3, Bell, LogOut, Mail, PenLine, ScrollText, Users } from "lucide-react";
 import { Mark } from "@/components/innerly/mark";
 import { Wordmark } from "@/components/innerly/wordmark";
 import { cn } from "@/lib/utils";
@@ -11,12 +11,14 @@ import { Accounts } from "./accounts";
 import { ActivityLog } from "./activity-log";
 import { Writing } from "./writing";
 import { Notifications } from "./notifications";
+import { Email } from "./email";
 
 const TABS = [
   { id: "overview", label: "Overview", icon: BarChart3, view: Overview },
   { id: "accounts", label: "Accounts", icon: Users, view: Accounts },
   { id: "writing", label: "Writing", icon: PenLine, view: Writing },
   { id: "notify", label: "Notify", icon: Bell, view: Notifications },
+  { id: "email", label: "Email", icon: Mail, view: Email },
   { id: "log", label: "Activity", icon: ScrollText, view: ActivityLog },
 ] as const;
 

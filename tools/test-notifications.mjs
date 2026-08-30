@@ -176,14 +176,23 @@ async function mock(page) {
     await btn.first().click(); await p.waitForTimeout(400);
   }
   await p.waitForTimeout(900);
-  if (await p.locator("[role=dialog]").count()) { await p.keyboard.press("Escape"); await p.waitForTimeout(400); }
+  // Deliberately still mid-tour. Nothing pops up over it, so this is the one
+  // moment the badge can be read without racing the toast.
   await p.waitForTimeout(1200);
 
   const bell = p.getByRole("button", { name: /Notifications/ });
   check("there is a bell in the app", (await bell.count()) > 0);
   const label = await bell.first().getAttribute("aria-label");
   check("...with an unread badge", /1 new/.test(label || ""), label);
+  check("nothing pops up over the tour", (await p.locator("[role=status]").count()) === 0);
   await p.screenshot({ path: "notify-bell.png" });
+
+  // Out of the tour, and it comes to them rather than waiting to be found.
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(1600);
+  check("once the tour is done it arrives on its own",
+    (await p.locator("[role=status]").count()) > 0);
+  check("...marked seen by showing up", state.some((s) => s.seen_at));
 
   await bell.first().click();
   await p.waitForTimeout(700);
@@ -192,8 +201,6 @@ async function mock(page) {
     panel.includes("Welcome back to Innerly, Divya"));
   check("the unpublished draft is NOT delivered", !panel.includes("Not ready"));
   await p.screenshot({ path: "notify-panel.png" });
-
-  check("opening it marks it seen", state.some((s) => s.seen_at));
 
   // Dismiss removes it for good.
   await p.getByRole("button", { name: /^Dismiss$/ }).first().click();
