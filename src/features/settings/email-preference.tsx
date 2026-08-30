@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card } from "@/components/ui/card";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase/client";
 import { currentUserId } from "@/lib/sync";
+import { Section, Toggle } from "./parts";
 
 /**
  * Turning news and tips off, from inside the app.
@@ -53,42 +53,20 @@ export function EmailPreference() {
   };
 
   return (
-    <Card className="p-6">
-      <h2 className="text-lg font-medium text-heading">Email from us</h2>
-      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-        Occasional news, tips and things worth reading. Nothing often.
-      </p>
-
-      <button
-        onClick={toggle}
-        role="switch"
-        aria-checked={on}
-        aria-label="Email from us"
-        disabled={saving}
-        className="mt-4 flex w-full items-center justify-between gap-4 rounded-2xl border border-border/60 bg-card/70 px-4 py-3 text-left transition-colors hover:bg-accent/40"
-      >
-        <span className="text-[13.5px] text-foreground">
-          {on ? "Yes, send them" : "No thanks"}
-        </span>
-        <span
-          className={
-            "relative h-6 w-10 shrink-0 rounded-full transition-colors " +
-            (on ? "bg-[var(--brand-green-strong)]" : "bg-border")
-          }
-        >
-          <span
-            className={
-              "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform " +
-              (on ? "translate-x-[1.125rem]" : "translate-x-0.5")
-            }
-          />
-        </span>
-      </button>
-
-      <p className="mt-3 text-[12.5px] leading-relaxed text-muted-foreground">
+    <Section title="Email from us">
+      <div className="mt-2">
+        <Toggle
+          label="News and tips"
+          desc="Occasional things worth reading. Nothing often."
+          checked={on}
+          onChange={toggle}
+          disabled={saving}
+        />
+      </div>
+      <p className="mt-2 border-t border-border/50 pt-3 text-[12px] leading-relaxed text-muted-foreground">
         Emails about your account — confirming your address, resetting your
         password — always come through. You&apos;d be locked out otherwise.
       </p>
-    </Card>
+    </Section>
   );
 }

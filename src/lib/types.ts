@@ -4,6 +4,8 @@ export type Profile = {
   firstName: string;
   createdAt: string;
   dayStreak?: number;
+  /** Where the profile picture lives in the avatars bucket, if there is one. */
+  avatarPath?: string | null;
 };
 
 export type ReflectionMoment = {
@@ -272,13 +274,11 @@ export type VisionYear = {
 export type Prefs = {
   notifications: boolean;
   dailyReminder: boolean;
-  weeklyReport: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
   notifications: false,
   dailyReminder: true,
-  weeklyReport: false,
 };
 
 // Soft palette used for goal accents / vision tiles (from v48).

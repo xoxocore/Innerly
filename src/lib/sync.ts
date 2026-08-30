@@ -203,6 +203,30 @@ export async function detach() {
   clearLocal();
 }
 
+/**
+ * Everything this browser holds for the signed-in person, as plain data.
+ *
+ * Read from localStorage rather than from the server, because localStorage is
+ * what the screens actually read and write — an export taken from anywhere
+ * else could disagree with what somebody sees in front of them.
+ */
+export function exportAll(): Record<string, unknown> {
+  if (typeof window === "undefined") return {};
+  const out: Record<string, unknown> = {};
+  for (const k of localKeys()) {
+    const raw = window.localStorage.getItem(k);
+    if (raw === null) continue;
+    // Stored as JSON, but a value that somehow is not must still come out
+    // rather than take the whole export down with it.
+    try {
+      out[k.slice(PREFIX.length)] = JSON.parse(raw);
+    } catch {
+      out[k.slice(PREFIX.length)] = raw;
+    }
+  }
+  return out;
+}
+
 /** Exposed so a screen can tell whether edits are being backed up. */
 export function isSyncing() {
   return currentUser !== null;

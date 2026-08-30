@@ -38,6 +38,14 @@ type AuthState = {
    */
   recovery: boolean;
   updatePassword: (password: string) => Promise<void>;
+  /**
+   * Changing it from Settings, which asks for the current one first.
+   * A session on its own is not proof of identity — an unlocked laptop is a
+   * session — and a password changed by a passer-by locks the owner out.
+   */
+  changePassword: (current: string, next: string) => Promise<void>;
+  /** Ends every session everywhere, for a device that was lost or shared. */
+  signOutEverywhere: () => Promise<void>;
   resendConfirmation: (email: string) => Promise<void>;
   /** Why a link from an email did not work — expired, already used, malformed. */
   linkError: string | null;
@@ -259,6 +267,25 @@ export function AuthProvider({
     setRecovery(false);
   }, [guard]);
 
+  const changePassword = useCallback(
+    async (current: string, next: string) => {
+      const email = session?.user.email;
+      if (!email) throw new AuthError("You are not signed in.");
+
+      // Proved by signing in again with it. Supabase would take the new
+      // password on the session alone, which is exactly the hole this closes.
+      const { error: wrong } = await guard().auth.signInWithPassword({
+        email,
+        password: current,
+      });
+      if (wrong) throw new AuthError("That current password doesn't match.");
+
+      const { error } = await guard().auth.updateUser({ password: next });
+      if (error) throw new AuthError(readable(error.message));
+    },
+    [guard, session]
+  );
+
   const resendConfirmation = useCallback(
     async (email: string) => {
       const { error } = await guard().auth.resend({
@@ -287,6 +314,15 @@ export function AuthProvider({
     await supabase().auth.signOut();
   }, []);
 
+  const signOutEverywhere = useCallback(async () => {
+    if (!isSupabaseConfigured) return;
+    await detach();
+    setSyncedFor(null);
+    setRecovery(false);
+    // "global" ends every session on every device, not only this browser's.
+    await supabase().auth.signOut({ scope: "global" });
+  }, []);
+
   const value = useMemo<AuthState>(
     () => ({
       user: session?.user ?? null,
@@ -300,6 +336,8 @@ export function AuthProvider({
       signInWithGoogle,
       sendReset,
       signOut,
+      signOutEverywhere,
+      changePassword,
       recovery,
       updatePassword,
       resendConfirmation,
@@ -318,6 +356,8 @@ export function AuthProvider({
       signInWithGoogle,
       sendReset,
       signOut,
+      signOutEverywhere,
+      changePassword,
       updatePassword,
       resendConfirmation,
       dismissLinkError,
