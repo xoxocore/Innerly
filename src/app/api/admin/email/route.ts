@@ -61,19 +61,35 @@ export async function POST(request: Request) {
 
   const { data: campaign, error: missing } = await admin
     .from("email_campaigns")
-    .select("id, subject, preheader, body, audience, status")
+    .select("id, subject, preheader, body, audience, status, delivered")
     .eq("id", body.campaignId)
     .single();
   if (missing || !campaign) {
     return NextResponse.json({ error: "No such campaign." }, { status: 404 });
   }
   // Sending the same campaign twice because a button was double-clicked is a
-  // mistake nobody can take back, so the status is the guard.
-  if (!body.test && campaign.status !== "draft") {
-    return NextResponse.json(
-      { error: "That has already been sent." },
-      { status: 409 }
-    );
+  // mistake nobody can take back, so what already went out is the guard —
+  // not the status. A send that reached nobody (no verified domain yet, a bad
+  // key, the service down) leaves the campaign marked failed, and refusing to
+  // retry that would strand a newsletter that never sent a single email.
+  if (!body.test) {
+    if (campaign.status === "sending") {
+      return NextResponse.json(
+        { error: "That is being sent right now." },
+        { status: 409 }
+      );
+    }
+    if ((campaign.delivered ?? 0) > 0) {
+      return NextResponse.json(
+        {
+          error:
+            `That has already gone out to ${campaign.delivered} ` +
+            `${campaign.delivered === 1 ? "person" : "people"}. Duplicate it ` +
+            `if you want to send it again, so nobody gets it twice.`,
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const origin = new URL(request.url).origin;
@@ -182,11 +198,14 @@ export async function POST(request: Request) {
     }
   }
 
+  const nothingLeft = delivered === 0;
   await admin
     .from("email_campaigns")
     .update({
-      status: failed > 0 && delivered === 0 ? "failed" : "sent",
-      sent_at: new Date().toISOString(),
+      status: nothingLeft ? "failed" : "sent",
+      // Only a send that actually reached somebody gets a sent time. Stamping
+      // one that reached nobody makes the list read as though it went out.
+      sent_at: nothingLeft ? null : new Date().toISOString(),
       delivered,
       failed,
       error: lastError,
@@ -216,6 +235,18 @@ async function send(
     });
     if (res.ok) return { ok: true };
     const detail = await res.text();
+    // The commonest refusal by far, and not a fault: until a domain is
+    // verified, Resend will only deliver to the account holder. Said plainly,
+    // because the raw message sends people hunting for a bug there isn't one.
+    if (/verify a domain|your own email address|testing emails/i.test(detail)) {
+      return {
+        ok: false,
+        error:
+          "Your email domain isn't verified yet, so this can only reach your " +
+          "own address for now. Add and verify a domain at resend.com/domains, " +
+          "then send this again — nothing has gone out, and the draft is kept.",
+      };
+    }
     return { ok: false, error: `Resend said ${res.status}: ${detail.slice(0, 300)}` };
   } catch (e) {
     return {

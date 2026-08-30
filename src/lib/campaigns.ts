@@ -68,5 +68,11 @@ export async function sendCampaign(campaignId: string, test: boolean) {
     to?: string;
   };
   if (!res.ok) throw new Error(body.error ?? "That didn't send.");
+  // A send that reached nobody comes back as 200 with the reason attached —
+  // the request was fine, the sending was not. Treated as success it would
+  // close the composer and look like it went out.
+  if (body.error && !body.delivered) {
+    throw new Error(body.error);
+  }
   return body;
 }
