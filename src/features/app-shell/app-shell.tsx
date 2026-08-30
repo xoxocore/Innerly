@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/innerly/avatar";
 import { Mark } from "@/components/innerly/mark";
+import { NotificationBell } from "@/features/notifications/bell";
 import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,7 @@ function StreakNightRow() {
   const { night, toggleNight, streak, profile } = useApp();
   const label = streak === 1 ? copy.brand.streakSingular : copy.brand.streakPlural;
   return (
-    <div className="flex items-center justify-between gap-3" data-tour="streak">
+    <div className="flex items-center justify-between gap-2" data-tour="streak">
       <div className="flex min-w-0 items-center gap-2.5">
         <Avatar name={profile?.firstName} className="h-9 w-9 text-sm" />
         <span className="min-w-0 truncate text-[13px] text-muted-foreground">
@@ -90,6 +91,7 @@ function StreakNightRow() {
           {label}
         </span>
       </div>
+      <NotificationBell />
       <button
         onClick={toggleNight}
         aria-label="Toggle night mode"
