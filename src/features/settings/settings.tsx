@@ -12,6 +12,7 @@ import { DEFAULT_PREFS, type Prefs } from "@/lib/types";
 import { useApp } from "@/state/app-context";
 import { useAuth } from "@/state/auth-context";
 import { restartTour } from "@/features/tour/tour";
+import { EmailPreference } from "@/features/settings/email-preference";
 
 const c = copy.settings;
 
@@ -125,6 +126,8 @@ export function Settings() {
             />
           </div>
         </Card>
+
+        <EmailPreference />
 
         {/* Show me around again */}
         <Card className="p-6">

@@ -1,39 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useApp, type View } from "@/state/app-context";
 import { useAuth } from "@/state/auth-context";
-import {
-  dismiss, fetchForMe, markSeen, type Delivered,
-} from "@/lib/notifications";
 import { NotificationCard } from "./card";
+import { useNotifications } from "./store";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 export function NotificationBell() {
   const { profile, navigate } = useApp();
   const { user } = useAuth();
-  const [items, setItems] = useState<Delivered[]>([]);
+  const { items, unseen, see, remove } = useNotifications();
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
-
-  const signedUpAt = user?.created_at;
-
-  const load = useCallback(() => {
-    fetchForMe(signedUpAt).then(setItems).catch(() => {});
-  }, [signedUpAt]);
-
-  useEffect(() => {
-    if (!user) return;
-    load();
-    // Slow on purpose: a message that waits five minutes is fine, and a panel
-    // polling every few seconds is not.
-    const timer = setInterval(load, 5 * 60 * 1000);
-    return () => clearInterval(timer);
-  }, [user, load]);
 
   // Click outside, or Escape.
   useEffect(() => {
@@ -50,16 +33,10 @@ export function NotificationBell() {
     };
   }, [open]);
 
-  const unseen = items.filter((n) => !n.seen);
-
   const openPanel = () => {
     setOpen(true);
-    if (unseen.length) {
-      // Marked as seen on opening, not on arrival — otherwise a badge appears
-      // and clears itself without anybody having read anything.
-      void markSeen(unseen.map((n) => n.id));
-      setItems((prev) => prev.map((n) => ({ ...n, seen: true })));
-    }
+    // Anything not already shown as a toast is seen now.
+    see(unseen.map((n) => n.id));
   };
 
   if (!user) return null;
@@ -118,10 +95,7 @@ export function NotificationBell() {
                           }
                         : undefined
                     }
-                    onDismiss={() => {
-                      void dismiss(n.id);
-                      setItems((prev) => prev.filter((x) => x.id !== n.id));
-                    }}
+                    onDismiss={() => remove(n.id)}
                   />
                 ))}
               </div>
