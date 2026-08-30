@@ -4,17 +4,34 @@
 -- Minimal stand-in for the parts of Supabase the migrations lean on, so the
 -- real policies can be exercised against a real Postgres.
 create schema if not exists auth;
+-- The columns the migrations actually read. Leaving any of them out makes the
+-- suites below fail on scaffolding rather than on the policies they are meant
+-- to be testing, which is worse than no test at all.
 create table auth.users (
   id uuid primary key,
   email text,
-  raw_user_meta_data jsonb not null default '{}'::jsonb
+  email_confirmed_at timestamptz,
+  banned_until timestamptz,
+  created_at timestamptz not null default now(),
+  raw_user_meta_data jsonb not null default '{}'::jsonb,
+  raw_app_meta_data  jsonb not null default '{}'::jsonb
 );
 -- Supabase's auth.uid() reads the sub claim off the request JWT.
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
-create role anon nologin;
-create role authenticated nologin;
+-- Roles belong to the cluster, not the database, so a second throwaway
+-- database in the same cluster would otherwise fail here before creating
+-- anything else.
+do $$
+begin
+  if not exists (select from pg_roles where rolname = 'anon') then
+    create role anon nologin;
+  end if;
+  if not exists (select from pg_roles where rolname = 'authenticated') then
+    create role authenticated nologin;
+  end if;
+end $$;
 grant usage on schema public, auth to anon, authenticated;
 
 -- Supabase's storage schema, enough of it to run the bucket policies in 0002.
