@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { ArrowLeft, Eye, ImagePlus, Loader2, Pencil, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ImageCropper } from "@/components/innerly/image-cropper";
 import {
   deletePost, savePost, uploadPostImage, type Post, type PostKind,
 } from "@/lib/posts";
@@ -42,6 +43,7 @@ export function PostForm({
   const [content, setContent] = useState(post?.content ?? "");
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState<false | "save" | "publish" | "cover">(false);
+  const [cropping, setCropping] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -74,12 +76,21 @@ export function PostForm({
     }
   };
 
-  const pickCover = async (file?: File) => {
+  // Chosen, then framed, then uploaded. Nothing is sent until somebody has
+  // said which part of the picture is the picture.
+  const pickCover = (file?: File) => {
     if (!file) return;
+    setError(null);
+    setCropping(file);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const uploadCropped = async (blob: Blob) => {
+    setCropping(null);
     setBusy("cover");
     setError(null);
     try {
-      setCover(await uploadPostImage(file));
+      setCover(await uploadPostImage(blob));
     } catch (e) {
       setError(e instanceof Error ? e.message : "That image would not upload.");
     } finally {
@@ -91,6 +102,18 @@ export function PostForm({
 
   return (
     <div>
+      {cropping && (
+        <ImageCropper
+          file={cropping}
+          // The same shape the card and the article header use, so what is
+          // framed here is what appears in both.
+          aspect={16 / 9}
+          title="Frame the cover"
+          onCancel={() => setCropping(null)}
+          onDone={uploadCropped}
+        />
+      )}
+
       <div className="mb-5 flex flex-wrap items-center gap-3">
         <button
           onClick={() => onClose(false)}
@@ -204,6 +227,9 @@ export function PostForm({
               >
                 {busy === "cover" ? "Uploading…" : cover ? "Replace" : "Choose a picture"}
               </button>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                You choose the framing — nothing is cropped for you.
+              </p>
             </Box>
 
             <Box label="Summary" hint="Shown on the card, before anyone opens it.">

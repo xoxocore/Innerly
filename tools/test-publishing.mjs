@@ -147,7 +147,17 @@ async function mock(page) {
   await covers[covers.length - 1].setInputFiles({
     name: "cover.png", mimeType: "image/png", buffer: png,
   });
-  await p.waitForTimeout(1200);
+  await p.waitForTimeout(900);
+
+  // Choosing a picture no longer uploads it. It opens the framing dialog
+  // first, because a cover cropped to the middle by CSS puts whatever happened
+  // to be in the centre of the photograph on the card.
+  check("choosing a cover asks how to frame it first",
+    (await p.getByRole("dialog", { name: /Frame the cover/ }).count()) > 0);
+  check("...and nothing has been sent yet", uploaded === 0, `${uploaded} upload(s)`);
+
+  await p.getByRole("button", { name: /Use this/ }).click();
+  await p.waitForTimeout(1400);
   check("a cover picture uploads", uploaded > 0, `${uploaded} upload(s)`);
   check("...and is shown back straight away",
     (await p.locator("aside img").count()) > 0);

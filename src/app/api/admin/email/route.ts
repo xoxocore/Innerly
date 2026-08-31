@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 
   const { data: campaign, error: missing } = await admin
     .from("email_campaigns")
-    .select("id, subject, preheader, body, audience, status, delivered")
+    .select("id, subject, preheader, body, custom_html, audience, status, delivered")
     .eq("id", body.campaignId)
     .single();
   if (missing || !campaign) {
@@ -117,6 +117,7 @@ export async function POST(request: Request) {
       subject: campaign.subject,
       preheader: campaign.preheader,
       body: campaign.body,
+      customHtml: campaign.custom_html,
       name: myName,
       unsubscribeUrl: url,
     };
@@ -172,6 +173,7 @@ export async function POST(request: Request) {
         subject: campaign.subject,
         preheader: campaign.preheader,
         body: campaign.body,
+        customHtml: campaign.custom_html,
         name: p.first_name,
         unsubscribeUrl: unsubscribeFor(p.token),
       };

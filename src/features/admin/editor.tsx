@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Bold, Italic, Heading2, Heading3, Link2, List, ListOrdered,
-  Quote, ImagePlus, Loader2, Minus, Undo2, Redo2,
+  Quote, ImagePlus, Loader2, Minus, Undo2, Redo2, MousePointerClick,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadPostImage } from "@/lib/posts";
@@ -31,6 +31,7 @@ export function Editor({
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cta, setCta] = useState<{ label: string; href: string } | null>(null);
 
   // Set once. Writing back on every keystroke would move the caret to the end
   // of the document mid-sentence.
@@ -58,6 +59,31 @@ export function Editor({
       a.setAttribute("target", "_blank");
       a.setAttribute("rel", "noopener noreferrer");
     });
+    emit();
+  };
+
+  /**
+   * A button, not a link.
+   *
+   * Marked with data-cta so the email template can rebuild it as a table cell
+   * — Outlook paints neither padding nor a background on an inline element, so
+   * a styled <a> arrives there as plain underlined text.
+   *
+   * Pointing it at Innerly's front door is the useful default: somebody signed
+   * in lands on their dashboard, somebody who is not lands on sign-up. One
+   * link does both, so nobody has to guess which to use.
+   */
+  const insertCta = () => {
+    if (!cta) return;
+    const label = cta.label.trim() || "Try Innerly";
+    const href = cta.href.trim() || homeUrl();
+    ref.current?.focus();
+    document.execCommand(
+      "insertHTML",
+      false,
+      `<p><a data-cta="1" href="${escapeAttr(href)}" target="_blank" rel="noopener noreferrer">${escapeText(label)}</a></p><p><br></p>`
+    );
+    setCta(null);
     emit();
   };
 
@@ -98,6 +124,12 @@ export function Editor({
         <Tool onClick={() => exec("insertHorizontalRule")} label="Divider"><Minus className="h-4 w-4" /></Tool>
         <Rule />
         <Tool onClick={addLink} label="Add a link"><Link2 className="h-4 w-4" /></Tool>
+        <Tool
+          onClick={() => setCta((c) => (c ? null : { label: "Try Innerly", href: homeUrl() }))}
+          label="Add a button"
+        >
+          <MousePointerClick className="h-4 w-4" />
+        </Tool>
         <Tool onClick={() => fileRef.current?.click()} label="Add a picture" disabled={busy}>
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
         </Tool>
@@ -113,6 +145,43 @@ export function Editor({
         className="hidden"
         onChange={(e) => addImage(e.target.files?.[0])}
       />
+
+      {cta && (
+        <div className="mb-3 rounded-2xl border border-border bg-card p-3.5">
+          <p className="mb-2.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
+            The button
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={cta.label}
+              aria-label="Button text"
+              placeholder="Try Innerly"
+              onChange={(e) => setCta({ ...cta, label: e.target.value })}
+              className="min-w-[9rem] flex-1 rounded-xl border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-[var(--brand-green)]"
+            />
+            <input
+              value={cta.href}
+              aria-label="Button link"
+              placeholder="https://"
+              onChange={(e) => setCta({ ...cta, href: e.target.value })}
+              className="min-w-[12rem] flex-[2] rounded-xl border border-border bg-background px-3 py-2 text-[13px] outline-none focus:border-[var(--brand-green)]"
+            />
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={insertCta}
+              style={{ backgroundColor: "var(--brand-green-strong)" }}
+              className="rounded-xl px-4 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+            >
+              Insert
+            </button>
+          </div>
+          <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
+            Left as it is, this opens Innerly: whoever is signed in lands on
+            their dashboard, and anybody who is not lands on sign-up.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p role="alert" className="mb-3 rounded-2xl bg-destructive/10 px-3.5 py-2.5 text-[12.5px] text-destructive">
@@ -139,6 +208,20 @@ export function Editor({
       />
     </div>
   );
+}
+
+/** Innerly's front door, which is wherever this is running. */
+function homeUrl(): string {
+  if (typeof window === "undefined") return "https://innerly-sooty.vercel.app";
+  return window.location.origin;
+}
+
+function escapeAttr(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
+
+function escapeText(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function Rule() {

@@ -26,6 +26,12 @@ export function EmailForm({
   const [subject, setSubject] = useState(campaign?.subject ?? "");
   const [preheader, setPreheader] = useState(campaign?.preheader ?? "");
   const [body, setBody] = useState(campaign?.body ?? "");
+  const [customHtml, setCustomHtml] = useState(campaign?.custom_html ?? "");
+  // Which of the two is being sent. Kept apart from the content so switching
+  // back and forth never costs somebody the version they are not looking at.
+  const [mode, setMode] = useState<"write" | "paste">(
+    campaign?.custom_html ? "paste" : "write"
+  );
   const [audience, setAudience] = useState<Audience>(campaign?.audience ?? "everyone");
   const [previewName, setPreviewName] = useState("Divya");
   const [size, setSize] = useState<number | null>(null);
@@ -51,6 +57,9 @@ export function EmailForm({
       subject: subject.trim(),
       preheader: preheader.trim(),
       body,
+      // Null rather than an empty string, so "which one is this?" has one
+      // answer rather than two that look alike.
+      custom_html: mode === "paste" && customHtml.trim() ? customHtml : null,
       audience,
     });
     return saved.id;
@@ -97,13 +106,16 @@ export function EmailForm({
     }
   };
 
-  const ready = subject.trim().length > 0 && body.trim().length > 0;
+  const pasted = mode === "paste" && customHtml.trim().length > 0;
+  const ready =
+    subject.trim().length > 0 && (pasted || body.trim().length > 0);
 
   // The real email, in a frame. Same function the server sends through.
   const previewHtml = renderEmail({
     subject: subject || "Your subject line",
     preheader,
     body: body || "<p>Your message goes here.</p>",
+    customHtml: pasted ? customHtml : null,
     name: previewName,
     unsubscribeUrl: "#",
   });
@@ -185,17 +197,62 @@ export function EmailForm({
           </Box>
 
           <Box label="Message">
+            {!alreadySent && (
+              <div className="mb-3 inline-flex rounded-full border border-border p-0.5">
+                {(
+                  [
+                    ["write", "Write it here"],
+                    ["paste", "Paste a design"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setMode(id)}
+                    className={cn(
+                      "rounded-full px-3.5 py-1.5 text-[12.5px] font-medium transition-colors",
+                      mode === id
+                        ? "bg-[var(--brand-green-strong)] text-white"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {alreadySent ? (
               <div
                 className="post-body rounded-2xl border border-border bg-card px-5 py-4 text-[14px] leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: body }}
+                dangerouslySetInnerHTML={{ __html: campaign?.custom_html || body }}
               />
+            ) : mode === "paste" ? (
+              <>
+                <textarea
+                  value={customHtml}
+                  aria-label="Pasted HTML"
+                  spellCheck={false}
+                  onChange={(e) => setCustomHtml(e.target.value)}
+                  placeholder="Paste the HTML your designer or Canva gave you…"
+                  className="min-h-[420px] w-full rounded-2xl border border-border bg-card px-4 py-3 font-mono text-[12px] leading-relaxed outline-none focus:border-[var(--brand-green)]"
+                />
+                <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
+                  Sent exactly as pasted &mdash; Innerly adds nothing but the
+                  unsubscribe line, which has to be there. Export as{" "}
+                  <strong>HTML</strong>, not an image: a design flattened to one
+                  picture is unreadable to anybody using a screen reader and is
+                  what gets a sender marked as spam.
+                </p>
+              </>
             ) : (
               <Editor value={body} onChange={setBody} />
             )}
+
             <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
               <code className="rounded bg-secondary px-1 py-0.5 font-mono">{"{name}"}</code>{" "}
-              becomes their first name, in the subject as well as the message.
+              becomes their first name, in the subject as well as the message
+              &mdash; in a pasted design too.
             </p>
           </Box>
 

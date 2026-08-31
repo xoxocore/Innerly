@@ -76,8 +76,14 @@ export async function deletePost(id: string) {
  * rather than the filename, so uploading "IMG_2024.jpg" twice does not have
  * the second quietly replace the first.
  */
-export async function uploadPostImage(file: File): Promise<string> {
-  const ext = (file.name.split(".").pop() ?? "jpg").toLowerCase().slice(0, 5);
+export async function uploadPostImage(file: File | Blob): Promise<string> {
+  // A cropped picture arrives as a Blob with no name, so the type decides the
+  // extension and the filename is only consulted when there is one.
+  const named = file instanceof File ? file.name : "";
+  const fromType = (file.type.split("/")[1] ?? "jpg").toLowerCase();
+  const ext = (named.includes(".") ? named.split(".").pop()! : fromType)
+    .toLowerCase()
+    .slice(0, 5);
   const id = crypto.randomUUID();
   const path = `${id}.${ext}`;
 
