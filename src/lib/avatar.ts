@@ -74,7 +74,17 @@ export async function uploadAvatar(file: File): Promise<string | null> {
     .storage.from(BUCKET)
     .upload(path, blob, { contentType: "image/jpeg", upsert: true });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // The one error worth naming specifically: it means migration 0009 has
+    // not been run yet, and "Bucket not found" on its own sends somebody
+    // hunting for a bug rather than a missing setup step.
+    if (/bucket not found/i.test(error.message)) {
+      throw new Error(
+        "Photo storage isn't set up yet — run migration 0009 in Supabase, then try again."
+      );
+    }
+    throw new Error(error.message);
+  }
   signed = null;
   return path;
 }
