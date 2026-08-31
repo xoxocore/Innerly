@@ -42,12 +42,20 @@ const LIBRARY: NavItem[] = [
 
 // The full lockup: jellyfish, then the name. The wordmark carries the alt text,
 // so the mark beside it stays decorative rather than announcing "Innerly" twice.
+//
+// A button rather than a div, because a logo in the corner of an app is the one
+// thing everybody already expects to take them home.
 function Brand() {
+  const { navigate } = useApp();
   return (
-    <div className="flex items-center gap-2">
+    <button
+      onClick={() => navigate("dashboard")}
+      aria-label="Innerly — go to the dashboard"
+      className="flex items-center gap-2 rounded-xl transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
       <Mark size={28} />
       <Wordmark height={20} />
-    </div>
+    </button>
   );
 }
 
@@ -85,7 +93,11 @@ function StreakNightRow() {
   return (
     <div className="flex items-center justify-between gap-2" data-tour="streak">
       <div className="flex min-w-0 items-center gap-2.5">
-        <Avatar name={profile?.firstName} className="h-9 w-9 text-sm" />
+        <Avatar
+          name={profile?.firstName}
+          path={profile?.avatarPath}
+          className="h-9 w-9 text-sm"
+        />
         <span className="min-w-0 truncate text-[13px] text-muted-foreground">
           <span className="font-medium tabular-nums text-foreground">{streak}</span>{" "}
           {label}

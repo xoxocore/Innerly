@@ -54,7 +54,7 @@ const posted = [];
 let noDomainYet = false;
 const campaignRow = { id: "c-1", subject: "Something new, {name}",
   preheader: "A small thing", body: "<p>We added a tour for new people.</p>",
-  audience: "everyone", status: "draft", delivered: 0 };
+  custom_html: null, audience: "everyone", status: "draft", delivered: 0 };
 const stub = createServer((req, res) => {
   let raw = "";
   req.on("data", (c) => (raw += c));
@@ -248,6 +248,62 @@ async function mock(page) {
   check("it says how many people it would reach",
     /Send to 7/.test(await p.locator("body").innerText()));
   await p.screenshot({ path: "email-compose.png" });
+
+  /* ------------------------------------------- pictures, buttons, pasting -- */
+
+  // A picture with no width is the thing that made the last email look wrong:
+  // an <img> in an email renders at its own pixel size unless it is told not to.
+  await editor.click();
+  await p.evaluate(() => {
+    const el = document.querySelector(".post-body[contenteditable]");
+    el.innerHTML +=
+      '<figure><img src="https://example.com/huge.jpg" width="4000" height="3000" />' +
+      '<figcaption>A caption</figcaption></figure>' +
+      '<p><a data-cta="1" href="https://innerly.example/">Try Innerly</a></p>';
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await p.waitForTimeout(800);
+
+  const framed = await frame.locator("img").first();
+  const imgBox = await framed.evaluate((el) => ({
+    w: el.getBoundingClientRect().width,
+    attr: el.getAttribute("width"),
+    style: el.getAttribute("style") || "",
+  }));
+  check("a huge picture is held to the frame", imgBox.w <= 500, `${Math.round(imgBox.w)}px wide`);
+  check("...with a width attribute, not only CSS", imgBox.attr === "496", String(imgBox.attr));
+  check("...and its original 4000px width dropped", !/width:\s*4000/.test(imgBox.style));
+
+  const ctaBg = await frame.locator('a[href="https://innerly.example/"]').first()
+    .evaluate((el) => {
+      const cell = el.closest("td");
+      return { bg: cell ? getComputedStyle(cell).backgroundColor : "", pad: getComputedStyle(el).padding };
+    });
+  check("a button is drawn as a button, not a link",
+    /rgb\(0,\s*135,\s*74\)/.test(ctaBg.bg), ctaBg.bg);
+  check("...with padding Outlook will actually paint", parseFloat(ctaBg.pad) > 5, ctaBg.pad);
+
+  await p.screenshot({ path: "email-rich.png" });
+
+  // A design made somewhere else goes out as it is.
+  await p.getByRole("button", { name: /Paste a design/ }).click();
+  await p.waitForTimeout(500);
+  await p.locator('textarea[aria-label="Pasted HTML"]').fill(
+    '<html><body><h1 style="color:#ff00ff">Hello {name}, from Canva</h1></body></html>'
+  );
+  await p.waitForTimeout(900);
+  const pastedText = await frame.locator("body").innerText();
+  check("a pasted design is shown as it is", /Hello Divya, from Canva/.test(pastedText),
+    pastedText.split("\n")[0]);
+  check("...with the unsubscribe line still added", /Stop these emails/i.test(pastedText));
+  check("...and Innerly's own frame left off", !/Something new, Divya/.test(pastedText));
+  await p.screenshot({ path: "email-pasted.png" });
+
+  // Back to writing: the written version must have survived the detour.
+  await p.getByRole("button", { name: /Write it here/ }).click();
+  await p.waitForTimeout(700);
+  check("switching back keeps what was written",
+    /We added a tour/.test(await frame.locator("body").innerText()));
 
   await p.getByRole("button", { name: /Send me a test/ }).click();
   await p.waitForTimeout(2000);

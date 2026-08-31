@@ -291,6 +291,22 @@ h4 {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/* A call to action, wherever it is read. The editor, the blog and the email
+   template all draw it as a button, so what is written is what goes out. */
+.post-body a[data-cta] {
+  display: inline-block;
+  margin: 0.4em 0;
+  padding: 0.72em 1.6em;
+  border-radius: 999px;
+  background: var(--brand-green-strong);
+  color: #fff;
+  font-size: 0.88em;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.15s;
+}
+.post-body a[data-cta]:hover { opacity: 0.9; }
+
 .post-body hr {
   margin: 2em auto;
   width: 40%;

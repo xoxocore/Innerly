@@ -10,6 +10,8 @@ export type Campaign = {
   subject: string;
   preheader: string;
   body: string;
+  /** A whole HTML email pasted in from a designer, instead of `body`. */
+  custom_html: string | null;
   audience: Audience;
   status: CampaignStatus;
   sent_at: string | null;
@@ -22,7 +24,7 @@ export type Campaign = {
 };
 
 const COLUMNS =
-  "id, subject, preheader, body, audience, status, sent_at, recipients, delivered, failed, error, created_at, updated_at";
+  "id, subject, preheader, body, custom_html, audience, status, sent_at, recipients, delivered, failed, error, created_at, updated_at";
 
 export async function fetchCampaigns(): Promise<Campaign[]> {
   const { data, error } = await supabase()
