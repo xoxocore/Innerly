@@ -23,26 +23,84 @@ export type Campaign = {
   updated_at: string;
 };
 
-const COLUMNS =
-  "id, subject, preheader, body, custom_html, audience, status, sent_at, recipients, delivered, failed, error, created_at, updated_at";
+/**
+ * A deploy lands the moment it is pushed; a migration is run by hand, later.
+ * Between the two there is a window where the code knows about a column the
+ * database does not have yet — and asking for it fails the whole query, which
+ * took out the entire Email tab rather than the one feature that was missing.
+ *
+ * So the newer column is asked for separately, and dropped for the rest of the
+ * session the first time the database says it does not exist. Everything that
+ * worked before a migration keeps working until it is run.
+ */
+const BASE_COLUMNS =
+  "id, subject, preheader, body, audience, status, sent_at, recipients, delivered, failed, error, created_at, updated_at";
+
+/** Added by migration 0010. */
+const DESIGN_COLUMN = "custom_html";
+
+let hasDesignColumn = true;
+
+function columns() {
+  return hasDesignColumn ? `${BASE_COLUMNS}, ${DESIGN_COLUMN}` : BASE_COLUMNS;
+}
+
+/** Postgres 42703, which PostgREST passes through as "column ... does not exist". */
+function missingColumn(error: { code?: string; message?: string }): boolean {
+  return (
+    error.code === "42703" ||
+    /column .*does not exist/i.test(error.message ?? "")
+  );
+}
 
 export async function fetchCampaigns(): Promise<Campaign[]> {
-  const { data, error } = await supabase()
-    .from("email_campaigns")
-    .select(COLUMNS)
-    .order("created_at", { ascending: false });
+  const run = () =>
+    supabase()
+      .from("email_campaigns")
+      .select(columns())
+      .order("created_at", { ascending: false });
+
+  let { data, error } = await run();
+  if (error && missingColumn(error) && hasDesignColumn) {
+    hasDesignColumn = false;
+    ({ data, error } = await run());
+  }
   if (error) throw new Error(error.message);
-  return (data ?? []) as Campaign[];
+  return (data ?? []).map(withDesign) as Campaign[];
 }
 
 export async function saveCampaign(c: Partial<Campaign>) {
-  const { data, error } = await supabase()
-    .from("email_campaigns")
-    .upsert(c)
-    .select(COLUMNS)
-    .single();
+  const run = () => {
+    // Nothing is written to a column that is not there, so saving a draft
+    // still works before the migration — it just cannot carry a pasted design.
+    const row = hasDesignColumn ? c : stripDesign(c);
+    return supabase().from("email_campaigns").upsert(row).select(columns()).single();
+  };
+
+  let { data, error } = await run();
+  if (error && missingColumn(error) && hasDesignColumn) {
+    hasDesignColumn = false;
+    ({ data, error } = await run());
+  }
   if (error) throw new Error(error.message);
-  return data as Campaign;
+  return withDesign(data) as Campaign;
+}
+
+/** Keeps the shape whole for callers, whether the column exists or not. */
+function withDesign(row: unknown): Campaign {
+  const r = row as Campaign;
+  return { ...r, custom_html: r?.custom_html ?? null };
+}
+
+function stripDesign(c: Partial<Campaign>): Partial<Campaign> {
+  const copy = { ...c };
+  delete copy.custom_html;
+  return copy;
+}
+
+/** True once the database has been migrated far enough to hold a design. */
+export function designsSupported(): boolean {
+  return hasDesignColumn;
 }
 
 export async function deleteCampaign(id: string) {

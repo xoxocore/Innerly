@@ -59,11 +59,25 @@ export async function POST(request: Request) {
 
   const admin = supabaseAdmin();
 
-  const { data: campaign, error: missing } = await admin
+  // Asked for with the newer column, and again without it if the database has
+  // not been migrated yet. A deploy is instant and a migration is run by hand,
+  // so there is always a window where the code knows about a column that is
+  // not there — and failing the whole query in that window would refuse to
+  // send a perfectly ordinary newsletter.
+  const BASE = "id, subject, preheader, body, audience, status, delivered";
+  let { data: campaign, error: missing } = await admin
     .from("email_campaigns")
-    .select("id, subject, preheader, body, custom_html, audience, status, delivered")
+    .select(`${BASE}, custom_html`)
     .eq("id", body.campaignId)
     .single();
+
+  if (missing && /column .*does not exist/i.test(missing.message ?? "")) {
+    ({ data: campaign, error: missing } = await admin
+      .from("email_campaigns")
+      .select(BASE)
+      .eq("id", body.campaignId)
+      .single());
+  }
   if (missing || !campaign) {
     return NextResponse.json({ error: "No such campaign." }, { status: 404 });
   }
@@ -117,7 +131,7 @@ export async function POST(request: Request) {
       subject: campaign.subject,
       preheader: campaign.preheader,
       body: campaign.body,
-      customHtml: campaign.custom_html,
+      customHtml: "custom_html" in campaign ? campaign.custom_html : null,
       name: myName,
       unsubscribeUrl: url,
     };
@@ -173,7 +187,7 @@ export async function POST(request: Request) {
         subject: campaign.subject,
         preheader: campaign.preheader,
         body: campaign.body,
-        customHtml: campaign.custom_html,
+        customHtml: "custom_html" in campaign ? campaign.custom_html : null,
         name: p.first_name,
         unsubscribeUrl: unsubscribeFor(p.token),
       };
