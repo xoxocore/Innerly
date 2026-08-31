@@ -1,14 +1,16 @@
-/* eslint-disable @next/next/no-img-element */
 import { LOGO_ASPECT, LOGO_SRC } from "@/lib/logo";
 import { cn } from "@/lib/utils";
 
 /**
- * The Innerly wordmark — the name set in the brand's own lettering, trimmed to
- * its ink and cut out onto transparency by tools/prepare-logo.mjs.
+ * The Innerly wordmark, in the lettering it was drawn in.
  *
- * Sized by height alone: the width follows from the source aspect so the
- * letterforms can never be squashed by a stray width class. `alt` carries the
- * name, which is why the mark beside it is decoration.
+ * Painted as a shape rather than pasted as a picture: the artwork is black,
+ * and black on the night-mode background is nothing at all. The letterforms
+ * are exactly as drawn and never touched — only the ink follows the page, the
+ * same way a printed logo takes the colour of whatever it is printed with.
+ *
+ * Sized by height alone, so the width follows from the artwork's own aspect
+ * and the letters can never be squashed by a stray width class.
  */
 export function Wordmark({
   height = 22,
@@ -19,14 +21,23 @@ export function Wordmark({
 }) {
   const width = Math.round(height * LOGO_ASPECT);
   return (
-    <img
-      src={LOGO_SRC}
-      alt="Innerly"
-      width={width}
-      height={height}
-      style={{ width, height }}
-      className={cn("block shrink-0 select-none object-contain", className)}
-      draggable={false}
+    <span
+      role="img"
+      aria-label="Innerly"
+      style={{
+        width,
+        height,
+        backgroundColor: "currentColor",
+        WebkitMaskImage: `url("${LOGO_SRC}")`,
+        maskImage: `url("${LOGO_SRC}")`,
+        WebkitMaskSize: "contain",
+        maskSize: "contain",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center",
+        maskPosition: "center",
+      }}
+      className={cn("block shrink-0 select-none", className)}
     />
   );
 }

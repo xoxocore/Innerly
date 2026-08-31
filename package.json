@@ -16,7 +16,8 @@
     "test:notifications": "node tools/test-notifications.mjs",
     "test:email": "node tools/test-email.mjs",
     "test:account": "node tools/test-account.mjs",
-    "test:blog": "node tools/test-blog.mjs"
+    "test:blog": "node tools/test-blog.mjs",
+    "test:logo": "node tools/test-logo.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",

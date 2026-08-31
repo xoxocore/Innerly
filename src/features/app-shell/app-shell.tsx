@@ -51,10 +51,12 @@ function Brand() {
     <button
       onClick={() => navigate("dashboard")}
       aria-label="Innerly — go to the dashboard"
-      className="flex items-center gap-2 rounded-xl transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      // px-1 pt-1: the artwork is trimmed hard to its own edges, so without a
+      // little of its own the mark sits flush against the panel border.
+      className="flex items-center gap-2 rounded-xl px-1 pt-1 text-foreground transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <Mark size={28} />
-      <Wordmark height={20} />
+      <Mark size={30} />
+      <Wordmark height={19} />
     </button>
   );
 }
@@ -127,7 +129,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-background lg:flex-row">
       {/* Desktop sidebar — frozen (sticky), solid glass */}
-      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 lg:shrink-0 lg:flex-col lg:gap-7 lg:self-start lg:overflow-y-auto lg:border-r lg:border-border/60 lg:bg-card/85 lg:p-5 lg:backdrop-blur-xl">
+      <aside className="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-64 lg:shrink-0 lg:flex-col lg:gap-10 lg:self-start lg:overflow-y-auto lg:border-r lg:border-border/60 lg:bg-card/85 lg:p-5 lg:backdrop-blur-xl">
         <Brand />
         <nav className="flex flex-1 flex-col gap-0.5">
           {MAIN.map((item) => (

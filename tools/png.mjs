@@ -1,38 +1,16 @@
-// Turns the brand exports into shippable assets.
+// PNG in and PNG out, with nothing else in the way.
 //
-// Both sources are 2000x2000 with no alpha and the artwork floating in a small
-// patch of white, so both need trimming and cutting out — but in opposite
-// ways, and getting them the same way round matters:
+// Shared by the asset tools so there is one decoder and one encoder rather
+// than a copy per logo. Pure Node — zlib is the only thing PNG needs, and a
+// build tool that depends on a browser is a tool nobody can run.
 //
-//   the wordmark  is green ink on white. White becomes transparent.
-//   the mark      is a green disc with WHITE line art on it. Running the
-//                 wordmark's rule over it would erase the jellyfish. It gets a
-//                 circular cut-out instead, and its colours are left alone.
-//
-// Writes public/innerly-wordmark.png, public/innerly-mark.png, src/app/icon.png
-// (which Next serves as the browser-tab icon) and src/lib/logo.ts, which
-// carries both as data URIs so they render in the single-file build too.
-//
-// Pure Node: zlib is the only thing PNG needs, and a build tool that depends
-// on a browser is a tool nobody can run. Handles the 8-bit non-interlaced
-// RGB/RGBA case, which is what design tools export; anything else errors
-// loudly rather than producing a silently wrong logo.
-//
-// Run with: node tools/prepare-logo.mjs
+// Handles the 8-bit non-interlaced RGB/RGBA case, which is what design tools
+// export; anything else errors loudly rather than producing a silently wrong
+// logo.
 
-import { readFile, writeFile } from "node:fs/promises";
 import { inflateSync, deflateSync } from "node:zlib";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const WORDMARK = join(root, "brand", "innerly-wordmark-source.png");
-const MARK = join(root, "brand", "innerly-mark-source.png");
-
-const WORDMARK_HEIGHT = 240; // crisp at 3x the largest place it is used (~40px)
-const MARK_SIZE = 256;       // also the source for the favicon
-const PAD = 2;
-const SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+export const SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
 /* ------------------------------------------------------------------ crc32 */
 
@@ -46,7 +24,7 @@ const CRC_TABLE = (() => {
   return t;
 })();
 
-function crc32(buf) {
+export function crc32(buf) {
   let c = 0xffffffff;
   for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
@@ -54,7 +32,7 @@ function crc32(buf) {
 
 /* ----------------------------------------------------------------- decode */
 
-function decodePng(buf) {
+export function decodePng(buf) {
   if (!buf.subarray(0, 8).equals(SIGNATURE)) throw new Error("not a PNG");
 
   let pos = 8;
@@ -135,7 +113,7 @@ function decodePng(buf) {
 
 /* ----------------------------------------------------------------- encode */
 
-function chunk(type, data) {
+export function chunk(type, data) {
   const length = Buffer.alloc(4);
   length.writeUInt32BE(data.length);
   const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
@@ -144,7 +122,7 @@ function chunk(type, data) {
   return Buffer.concat([length, body, crc]);
 }
 
-function encodePng(width, height, rgba) {
+export function encodePng(width, height, rgba) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
@@ -172,7 +150,7 @@ function encodePng(width, height, rgba) {
 
 // Bounding box of everything that is not the white ground, plus the most
 // saturated pixel found, which is the artwork's true colour.
-function inspect({ width, height, channels, data }) {
+export function inspect({ width, height, channels, data }) {
   const at = (x, y) => (y * width + x) * channels;
   let minX = width, minY = height, maxX = -1, maxY = -1;
   let ink = null;
@@ -201,7 +179,7 @@ function inspect({ width, height, channels, data }) {
 // Box-filter downscale. RGB is premultiplied by alpha before averaging and
 // divided back out after: without that, a transparent pixel's colour bleeds
 // into its neighbours and every edge picks up a halo.
-function downscale(src, w, h, outW, outH) {
+export function downscale(src, w, h, outW, outH) {
   const out = Buffer.alloc(outW * outH * 4);
   for (let y = 0; y < outH; y++) {
     const y0 = Math.floor((y * h) / outH);
@@ -232,120 +210,3 @@ function downscale(src, w, h, outW, outH) {
   return out;
 }
 
-/* ---------------------------------------------------------------- wordmark */
-
-// Green ink on white: solve P = a*C + (1-a)*255 on the red channel (widest
-// spread — 255 on the ground, near zero in the ink) to recover alpha. A plain
-// threshold would leave a white fringe on every anti-aliased edge.
-function buildWordmark(img) {
-  const { width, height, data } = img;
-  const { minX: bx, minY: by, maxX: bX, maxY: bY, ink, at } = inspect(img);
-
-  const minX = Math.max(0, bx - PAD);
-  const minY = Math.max(0, by - PAD);
-  const maxX = Math.min(width - 1, bX + PAD);
-  const maxY = Math.min(height - 1, bY + PAD);
-  const w = maxX - minX + 1;
-  const h = maxY - minY + 1;
-
-  const [cr, cg, cb] = ink;
-  const span = 255 - cr || 1;
-  const rgba = Buffer.alloc(w * h * 4);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = at(minX + x, minY + y);
-      const o = (y * w + x) * 4;
-      rgba[o] = cr;
-      rgba[o + 1] = cg;
-      rgba[o + 2] = cb;
-      rgba[o + 3] = Math.round(
-        Math.min(1, Math.max(0, (255 - data[i]) / span)) * 255
-      );
-    }
-  }
-
-  const outW = Math.max(1, Math.round((w * WORDMARK_HEIGHT) / h));
-  return {
-    png: encodePng(outW, WORDMARK_HEIGHT, downscale(rgba, w, h, outW, WORDMARK_HEIGHT)),
-    w: outW,
-    h: WORDMARK_HEIGHT,
-    trimmed: `${w}x${h}`,
-    colour: "#" + [cr, cg, cb].map((v) => v.toString(16).padStart(2, "0")).join(""),
-  };
-}
-
-/* -------------------------------------------------------------------- mark */
-
-// A green disc carrying white line art. The colours are kept exactly as drawn
-// and only the area outside the disc is cut away, so the jellyfish survives.
-// The radius is pulled in a hair to drop the source's own anti-aliased rim,
-// which is part-white and would otherwise read as a pale halo on a dark page.
-function buildMark(img) {
-  const { data } = img;
-  const { minX, minY, maxX, maxY, ink, at } = inspect(img);
-
-  const w = maxX - minX + 1;
-  const h = maxY - minY + 1;
-  if (Math.abs(w - h) > 2) {
-    throw new Error(
-      `the mark is expected to be a circle in a square box, got ${w}x${h}`
-    );
-  }
-
-  const cx = (w - 1) / 2;
-  const cy = (h - 1) / 2;
-  const radius = w / 2 - 1.5;
-  const feather = 1.2;
-
-  const rgba = Buffer.alloc(w * h * 4);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) {
-      const i = at(minX + x, minY + y);
-      const o = (y * w + x) * 4;
-      const d = Math.hypot(x - cx, y - cy);
-      const alpha = Math.min(1, Math.max(0, (radius - d) / feather + 0.5));
-      rgba[o] = data[i];
-      rgba[o + 1] = data[i + 1];
-      rgba[o + 2] = data[i + 2];
-      rgba[o + 3] = Math.round(alpha * 255);
-    }
-  }
-
-  return {
-    png: encodePng(MARK_SIZE, MARK_SIZE, downscale(rgba, w, h, MARK_SIZE, MARK_SIZE)),
-    size: MARK_SIZE,
-    trimmed: `${w}x${h}`,
-    colour: "#" + ink.map((v) => v.toString(16).padStart(2, "0")).join(""),
-  };
-}
-
-/* ------------------------------------------------------------------- write */
-
-const wordmark = buildWordmark(decodePng(await readFile(WORDMARK)));
-const mark = buildMark(decodePng(await readFile(MARK)));
-
-await writeFile(join(root, "public", "innerly-wordmark.png"), wordmark.png);
-await writeFile(join(root, "public", "innerly-mark.png"), mark.png);
-// Next serves src/app/icon.png as the browser-tab icon with no extra config.
-await writeFile(join(root, "src", "app", "icon.png"), mark.png);
-
-await writeFile(
-  join(root, "src", "lib", "logo.ts"),
-  `// GENERATED — do not edit by hand. See tools/prepare-logo.mjs.
-// The brand assets as data URIs, so they render in the single-file build as
-// well as in the app. Mark ${(mark.png.length / 1024).toFixed(1)}KB, wordmark ${(wordmark.png.length / 1024).toFixed(1)}KB.
-
-export const MARK_SRC =
-  "data:image/png;base64,${mark.png.toString("base64")}";
-
-export const LOGO_SRC =
-  "data:image/png;base64,${wordmark.png.toString("base64")}";
-
-// Width ÷ height of the trimmed wordmark, so callers can size by height alone.
-export const LOGO_ASPECT = ${(wordmark.w / wordmark.h).toFixed(4)};
-`
-);
-
-console.log(`wordmark  trimmed ${wordmark.trimmed} → ${wordmark.w}x${wordmark.h}  ${(wordmark.png.length / 1024).toFixed(1)}KB  ${wordmark.colour}`);
-console.log(`mark      trimmed ${mark.trimmed} → ${mark.size}x${mark.size}  ${(mark.png.length / 1024).toFixed(1)}KB  ${mark.colour}`);
-console.log(`also wrote src/app/icon.png (browser tab)`);
