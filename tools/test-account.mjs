@@ -206,6 +206,35 @@ async function signedIn(width = 1280, height = 1000) {
   await p.close();
 }
 
+/* ---------------------------------------------------------- adding a photo */
+{
+  uploaded = null;
+  const { p, errs } = await signedIn();
+
+  // A minimal real PNG (a single transparent pixel), so the resize/re-encode
+  // path in src/lib/avatar.ts runs against actual image bytes rather than a
+  // file the browser would refuse to decode.
+  const png = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64"
+  );
+  await p.setInputFiles('input[aria-label="Profile photo"]', {
+    name: "me.png",
+    mimeType: "image/png",
+    buffer: png,
+  });
+  await p.waitForTimeout(1200);
+
+  check("choosing a photo uploads it", uploaded?.includes("/avatars/") ?? false,
+    String(uploaded));
+  check("...scoped under the owner's own id",
+    uploaded?.includes(`avatars/${OWNER.id}/`) ?? false, String(uploaded));
+  check("...and the button now offers to change it, not add one",
+    (await p.getByRole("button", { name: /Change photo/ }).count()) > 0);
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
 /* ------------------------------------------------------------ the name saves */
 {
   const { p, errs } = await signedIn();
