@@ -52,6 +52,10 @@ const posted = [];
 // verified: it refuses anything addressed to somebody other than the account
 // holder. This is the state every new account starts in.
 let noDomainYet = false;
+// Reproduces the state between a deploy and its migration: the code asks for
+// custom_html, the database has never heard of it. This broke the whole Email
+// tab rather than the one feature that was missing.
+let migrated = true;
 const campaignRow = { id: "c-1", subject: "Something new, {name}",
   preheader: "A small thing", body: "<p>We added a tour for new people.</p>",
   custom_html: null, audience: "everyone", status: "draft", delivered: 0 };
@@ -82,7 +86,18 @@ const stub = createServer((req, res) => {
     if (path === "/rest/v1/rpc/is_admin") return send(true);
     if (path === "/rest/v1/email_prefs") return send({ marketing: true, token: "tok-1" });
     if (path === "/rest/v1/email_campaigns") {
-      if (req.method === "GET") return send(campaignRow);
+      if (!migrated && /custom_html/.test(req.url)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({ code: "42703",
+          message: "column email_campaigns.custom_html does not exist" }));
+      }
+      if (req.method === "GET") {
+        if (migrated) return send(campaignRow);
+        // The row as a database without 0010 would return it.
+        const rest = { ...campaignRow };
+        delete rest.custom_html;
+        return send(rest);
+      }
       // The route writes the outcome back; keep it, so a second attempt sees
       // exactly what a real second attempt would.
       Object.assign(campaignRow, JSON.parse(raw || "{}"));
@@ -132,6 +147,11 @@ async function mock(page) {
       if (m === "POST") { for (const r of [].concat(JSON.parse(body||"[]"))) noteState.push(r); return json({}); }
     }
     if (path === "/rest/v1/email_campaigns") {
+      // A database that has not had 0010 run against it yet.
+      if (!migrated && /custom_html/.test(u.search)) {
+        return json({ code: "42703",
+          message: "column email_campaigns.custom_html does not exist" }, 400);
+      }
       if (m === "GET") return json(campaigns);
       if (m === "POST") {
         const row = [].concat(JSON.parse(body || "{}"))[0];
@@ -198,6 +218,51 @@ async function mock(page) {
     (await p.locator("body").innerText()).includes("Welcome back to Innerly, Divya"));
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
+}
+
+/* ------------------------- before the migration has been run --------------
+ * The state every deploy passes through: new code, old database. This took
+ * out the whole Email tab, so it is checked before anything else.
+ */
+{
+  migrated = false;
+  const p = await (await b.newContext({ viewport: { width: 1360, height: 1050 } })).newPage();
+  const errs = []; p.on("pageerror", (e) => errs.push(String(e)));
+  await mock(p);
+  await p.goto("http://localhost:3000/admin", { waitUntil: "networkidle" });
+  await p.waitForTimeout(600);
+  await p.getByPlaceholder("Email").fill(OWNER.email);
+  await p.getByPlaceholder("Password").fill("x");
+  await p.getByRole("button", { name: /Sign in/ }).click();
+  await p.waitForTimeout(1500);
+  await p.getByRole("button", { name: /^Email$/ }).click();
+  await p.waitForTimeout(1200);
+
+  const shown = await p.locator("body").innerText();
+  check("an un-migrated database does not break the Email tab",
+    !/does not exist/i.test(shown), shown.match(/column.*exist/i)?.[0]);
+  check("...the tab still opens", /Nothing sent yet|Write one/i.test(shown));
+
+  // And writing still works — it just cannot carry a pasted design yet.
+  await p.getByRole("button", { name: /Write one/ }).click();
+  await p.waitForTimeout(700);
+  await p.locator('input[aria-label="Subject"]').fill("Still works");
+  await p.locator(".post-body[contenteditable]").click();
+  await p.keyboard.type("Written before the migration.");
+  await p.waitForTimeout(500);
+  await p.getByRole("button", { name: /Save draft/ }).click();
+  await p.waitForTimeout(1200);
+  check("...and a draft still saves", savedCampaign?.subject === "Still works",
+    JSON.stringify(savedCampaign?.subject));
+  check("...without writing to the column that is not there",
+    savedCampaign !== null && !("custom_html" in savedCampaign),
+    Object.keys(savedCampaign ?? {}).join(","));
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.screenshot({ path: "email-unmigrated.png" });
+  await p.close();
+  migrated = true;
+  savedCampaign = null;
+  campaigns.length = 0;
 }
 
 /* ------------------------------------------------------- writing an email */
