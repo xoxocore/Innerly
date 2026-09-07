@@ -19,6 +19,7 @@ import { copy, fill } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/app-context";
 import { useReflections, useTodayPlan, type TodayItem } from "@/state/use-data";
+import { Celebrate, CELEBRATION_MS } from "./celebrate";
 
 const c = copy.dashboard;
 const DONE_GREEN = "#34d399"; // soft, powdery green for completed items
@@ -143,10 +144,34 @@ function TodoList({
   const [adding, setAdding] = useState(false);
   const [value, setValue] = useState("");
 
+  // A task that has just been ticked stays on the list for a moment so the
+  // tick can fill and the burst can play. Without it the row would be gone on
+  // the same frame as the click, and finishing something would look like
+  // losing it.
+  const [cheering, setCheering] = useState<string[]>([]);
+
   const submit = () => {
     today.addTask(value);
     setValue("");
   };
+
+  const key = (i: TodayItem) => `${i.source}-${i.id}`;
+
+  const toggle = (item: TodayItem) => {
+    today.toggle(item);
+    if (item.done) return;
+    const id = key(item);
+    setCheering((prev) => [...prev, id]);
+    setTimeout(
+      () => setCheering((prev) => prev.filter((k) => k !== id)),
+      CELEBRATION_MS
+    );
+  };
+
+  // The home list is what is still to do. Anything finished has had its moment
+  // and belongs to the Daily Plan, where it can also be un-ticked.
+  const open = today.items.filter((i) => !i.done || cheering.includes(key(i)));
+  const allDone = today.total > 0 && open.length === 0;
 
   return (
     <Card className="flex flex-col border-border/60 bg-card/45 p-5 backdrop-blur-2xl">
@@ -168,23 +193,22 @@ function TodoList({
 
       {/* rows */}
       <div className="mt-4 flex-1">
-        {today.total === 0 ? (
+        {open.length === 0 ? (
           <p className="py-5 text-[13px] leading-relaxed text-muted-foreground">
-            {c.todayEmpty}
+            {allDone ? c.todayAllDone : c.todayEmpty}
           </p>
         ) : (
           <ul className="-mx-2">
             <AnimatePresence initial={false}>
-              {[...today.items]
-                .sort((a, b) => Number(a.done) - Number(b.done))
-                .map((item) => (
-                  <TodoRow
-                    key={`${item.source}-${item.id}`}
-                    item={item}
-                    onToggle={() => today.toggle(item)}
-                    onRemove={() => today.remove(item)}
-                  />
-                ))}
+              {open.map((item) => (
+                <TodoRow
+                  key={key(item)}
+                  item={item}
+                  cheering={cheering.includes(key(item))}
+                  onToggle={() => toggle(item)}
+                  onRemove={() => today.remove(item)}
+                />
+              ))}
             </AnimatePresence>
           </ul>
         )}
@@ -237,10 +261,12 @@ function TodoList({
 
 function TodoRow({
   item,
+  cheering,
   onToggle,
   onRemove,
 }: {
   item: TodayItem;
+  cheering: boolean;
   onToggle: () => void;
   onRemove: () => void;
 }) {
@@ -289,12 +315,13 @@ function TodoRow({
         onClick={onToggle}
         whileTap={{ scale: 0.85 }}
         aria-label={item.done ? "Mark incomplete" : "Mark complete"}
-        className="grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors"
+        className="relative grid h-6 w-6 shrink-0 place-items-center rounded-full border transition-colors"
         style={{
           borderColor: item.done ? DONE_GREEN : "var(--border)",
           backgroundColor: item.done ? DONE_GREEN : "transparent",
         }}
       >
+        {cheering && <Celebrate />}
         {item.done && <Check className="h-3.5 w-3.5 text-white" />}
       </motion.button>
     </motion.li>

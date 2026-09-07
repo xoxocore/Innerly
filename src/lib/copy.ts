@@ -34,6 +34,7 @@ export const copy = {
     todayTitle: "Today's plan",
     todayOpenLink: "Open plan",
     todayEmpty: "No actions yet — open a goal and add what you'll do today.",
+    todayAllDone: "That's everything for today. Well done.",
     todayMore: "more in your plan",
     remindersEyebrow: "Reminders to yourself",
     remindersTitle: "What you're working on",
