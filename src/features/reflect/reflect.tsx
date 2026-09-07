@@ -195,7 +195,6 @@ export function Reflect() {
                       <ReviewCard
                         key={i}
                         color={SOFT[i % SOFT.length]}
-                        night={night}
                         initialHtml={reviewParts[i] ?? partBase(m, whys[i]?.trim())}
                         onChange={(html) =>
                           setReviewParts((p) => ({ ...p, [i]: html }))
@@ -349,15 +348,21 @@ function ReviewToolbar({ night }: { night: boolean }) {
   );
 }
 
-// One reviewable moment, in its own soft card — editable for highlights.
+/**
+ * One reviewable moment, editable so it can be marked up.
+ *
+ * The card is the page's own white rather than a tint of the goal's colour:
+ * this is the step where the user reads their own words back closely enough to
+ * pick out what matters, and a wash behind the text — and behind the highlight
+ * they are about to lay on it — makes both harder to read. The colour stays as
+ * a rule down the left, which is enough to say which moment this is.
+ */
 function ReviewCard({
   color,
-  night,
   initialHtml,
   onChange,
 }: {
-  color: { dot: string; soft: string; softDark: string };
-  night: boolean;
+  color: { dot: string };
   initialHtml: string;
   onChange: (html: string) => void;
 }) {
@@ -374,11 +379,8 @@ function ReviewCard({
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ease: EASE }}
-      className="rounded-2xl border-l-2 py-2.5 pl-3.5 pr-3"
-      style={{
-        borderColor: color.dot,
-        backgroundColor: night ? color.softDark : color.soft,
-      }}
+      className="rounded-2xl border border-border/60 border-l-2 bg-card py-2.5 pl-3.5 pr-3"
+      style={{ borderLeftColor: color.dot }}
     >
       <div
         ref={ref}
