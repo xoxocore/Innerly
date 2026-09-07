@@ -44,6 +44,28 @@
      fine as decoration, too faint to read as a line on a chart. Both values
      below pass the lightness band and 3:1 contrast for their own surface. */
   --chart-ink: #00874a;
+
+  /* A reflection report reads as three steps: the thing that was heavy, the
+     reason behind it, and what happens next. Each gets its own colour so the
+     shape of the entry is legible before a word of it is read — and none of
+     them is alarm red, because being handed a warning about your own hard day
+     helps nobody. The run ends on the brand green: difficulty, understanding,
+     then forward. */
+  --report-heavy-bar: #fbdca8;
+  --report-heavy-ink: #714611;
+  --report-heavy-soft: #fdf6ea;
+
+  --report-why-bar: #ddcaf3;
+  --report-why-ink: #553383;
+  --report-why-soft: #f8f4fd;
+
+  --report-next-bar: #b4e3c2;
+  --report-next-ink: #135c37;
+  --report-next-soft: #eef9f2;
+
+  /* What the user marked in step three, in one colour whatever mode they
+     marked it in — a night-mode highlight is a dark block on white paper. */
+  --report-mark: #fbd9e6;
 }
 
 .dark {
@@ -78,6 +100,20 @@
   --brand-green-strong: #00874a;
   --brand-green-ink: #00bf63;
   --chart-ink: #00a85c;
+
+  --report-heavy-bar: #4a3a1d;
+  --report-heavy-ink: #f5dcac;
+  --report-heavy-soft: #241d0f;
+
+  --report-why-bar: #3b2e54;
+  --report-why-ink: #ddcbf6;
+  --report-why-soft: #1d1729;
+
+  --report-next-bar: #1d4632;
+  --report-next-ink: #a9e2c1;
+  --report-next-soft: #10261a;
+
+  --report-mark: #5a3340;
 }
 
 @theme inline {
@@ -334,4 +370,89 @@ h4 {
   content: attr(data-placeholder);
   color: var(--muted-foreground);
   pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ print
+
+   Exporting an entry is the browser's own Save-as-PDF, so the printed page
+   has to be the report by itself: not the sheet it floats in, not the app
+   behind it, and not the buttons that only mean anything on screen.
+
+   The dialog is portalled straight onto <body>, which is what makes this
+   simple — everything else under <body> is taken out of the flow entirely, so
+   the report starts on page one and breaks across pages by itself rather than
+   being trapped inside a fixed, scrolling box. */
+@media print {
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+
+  .print-root,
+  .print-root .print-shell,
+  .print-root .print-sheet {
+    position: static !important;
+    display: block !important;
+    inset: auto !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    background: #fff !important;
+  }
+
+  .print-hide {
+    display: none !important;
+  }
+
+  /* An entry written at night still prints on white paper. */
+  .print-sheet {
+    color-scheme: light;
+    color: #1b1b1b;
+
+    --report-heavy-bar: #fbdca8;
+    --report-heavy-ink: #714611;
+    --report-heavy-soft: #fdf6ea;
+    --report-why-bar: #ddcaf3;
+    --report-why-ink: #553383;
+    --report-why-soft: #f8f4fd;
+    --report-next-bar: #b4e3c2;
+    --report-next-ink: #135c37;
+    --report-next-soft: #eef9f2;
+    --report-mark: #fbd9e6;
+    --foreground: #1b1b1b;
+    --muted-foreground: #5b5b5b;
+    --heading: #111111;
+    --border: #00000014;
+
+    /* Browsers drop backgrounds when printing unless asked not to, and the
+       section colours are how the report is read. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* A section should not be split across a page break mid-thought. */
+  .print-block {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  @page {
+    margin: 14mm;
+  }
+}
+
+/* Paragraphs inside a marked-up reason, which arrive as raw HTML from the
+   marking step and so cannot be given classes. */
+.report-marked p {
+  margin: 0;
+}
+
+/* What the user marked in step three of a reflection. */
+.report-marked .report-mark {
+  background-color: var(--report-mark);
+  border-radius: 3px;
+  padding: 0 2px;
 }
