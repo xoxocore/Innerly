@@ -112,20 +112,20 @@ function DayRow({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, height: 0 }}
       transition={{ type: "spring", stiffness: 600, damping: 45 }}
-      className="group flex items-center gap-2.5 rounded-lg py-1.5 pl-2 pr-1 transition-colors hover:bg-accent/50"
+      className="group flex items-start gap-2.5 rounded-lg py-1.5 pl-2 pr-1 transition-colors hover:bg-accent/50"
     >
       <span
         aria-hidden
-        className="h-7 w-[3px] shrink-0 rounded-full"
+        className="w-[3px] shrink-0 self-stretch rounded-full"
         style={{ backgroundColor: done ? "transparent" : color.dot }}
       />
       <button
         onClick={onToggle}
         aria-pressed={done}
-        className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
+        className="flex min-w-0 flex-1 items-start gap-2.5 text-left"
       >
         <span
-          className="grid h-[17px] w-[17px] shrink-0 place-items-center rounded-full border-[1.5px] transition-colors"
+          className="mt-[1px] grid h-[17px] w-[17px] shrink-0 place-items-center rounded-full border-[1.5px] transition-colors"
           style={{
             borderColor: done ? color.dot : color.dot + "99",
             backgroundColor: done ? color.dot : "transparent",
@@ -136,14 +136,14 @@ function DayRow({
         <span className="min-w-0 flex-1">
           <span
             className={cn(
-              "block truncate text-[13.5px] leading-snug text-foreground",
+              "block break-words text-[13.5px] leading-snug text-foreground",
               done && "text-muted-foreground line-through"
             )}
           >
             {title}
           </span>
           <span
-            className="block truncate text-[11px] leading-tight"
+            className="mt-0.5 block break-words text-[11px] leading-tight"
             style={{ color: night ? color.dot : color.ink }}
           >
             {note}
@@ -155,7 +155,7 @@ function DayRow({
         <button
           onClick={onRemove}
           aria-label={c.remove}
-          className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-muted-foreground opacity-100 transition-all hover:bg-accent hover:text-destructive lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-muted-foreground opacity-100 transition-all hover:bg-accent hover:text-foreground lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
         >
           <X className="h-3.5 w-3.5" />
         </button>
