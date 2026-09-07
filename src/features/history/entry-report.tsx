@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Trash2, X } from "lucide-react";
+import { FileDown, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Mark } from "@/components/innerly/mark";
+import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { goalColor } from "@/lib/types";
 import { useApp } from "@/state/app-context";
+import { ReportBlock, Why } from "./report-body";
 import { dayLabel, dayStamp, timeOf, type HistoryEntry } from "./use-history";
 
 const c = copy.history;
@@ -21,53 +25,60 @@ function MicroLabel({ children }: { children: React.ReactNode }) {
 
 function ReflectionReport({ entry }: { entry: Extract<HistoryEntry, { kind: "reflection" }> }) {
   const { moments, differently, review } = entry.reflection;
+
+  // Older entries kept only one joined string of next steps for the whole
+  // reflection, before each moment carried its own. Split it back apart so
+  // they still read as points rather than as one run-on line.
+  const legacy =
+    moments.every((m) => !m.next?.filter(Boolean).length) && differently
+      ? differently.split(" · ").filter(Boolean)
+      : [];
+
   return (
-    <div className="space-y-7">
-      {moments.map((m, i) => (
-        <section key={i} className="space-y-2">
-          <MicroLabel>
-            {moments.length > 1 ? `Moment ${i + 1}` : "What felt heavy"}
-          </MicroLabel>
-          <p className="text-[17px] leading-relaxed text-foreground">{m.text}</p>
-          {m.why && (
-            <p className="text-[15px] leading-relaxed text-muted-foreground">
-              Because {m.why}
-            </p>
-          )}
-          {m.next && m.next.filter(Boolean).length > 0 && (
-            <ul className="space-y-1.5 pt-1">
-              {m.next.filter(Boolean).map((n, j) => (
-                <li
-                  key={j}
-                  className="flex gap-2.5 text-[15px] leading-relaxed text-foreground"
-                >
-                  <span aria-hidden className="text-muted-foreground">
-                    &rarr;
-                  </span>
-                  <span>{n}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+    <div className="space-y-6">
+      {moments.map((m, i) => {
+        const next = m.next?.filter(Boolean) ?? [];
+        const steps = next.length ? next : i === 0 ? legacy : [];
+        return (
+          <article key={i} className="space-y-2.5">
+            {moments.length > 1 && (
+              <MicroLabel>Moment {i + 1}</MicroLabel>
+            )}
 
-      {differently && (
-        <section className="space-y-2">
-          <MicroLabel>Next time</MicroLabel>
-          <p className="text-[15px] leading-relaxed text-foreground">{differently}</p>
-        </section>
-      )}
+            <ReportBlock tone="heavy">
+              <p>{m.text}</p>
+            </ReportBlock>
 
-      {review && (
-        <section className="space-y-2">
-          <MicroLabel>Pause &amp; review</MicroLabel>
-          <div
-            className="prose-innerly text-[15px] leading-relaxed text-foreground/90"
-            dangerouslySetInnerHTML={{ __html: review }}
-          />
-        </section>
-      )}
+            {(m.why || review) && (
+              <ReportBlock tone="why">
+                <Why review={review} moment={m} index={i} />
+              </ReportBlock>
+            )}
+
+            {steps.length > 0 && (
+              <ReportBlock tone="next">
+                <ol className="space-y-2">
+                  {steps.map((n, j) => (
+                    <li key={j} className="flex gap-2.5">
+                      <span
+                        aria-hidden
+                        className="mt-[3px] grid h-[16px] w-[16px] shrink-0 place-items-center rounded-full text-[9.5px] font-bold tabular-nums"
+                        style={{
+                          backgroundColor: "var(--report-next-bar)",
+                          color: "var(--report-next-ink)",
+                        }}
+                      >
+                        {j + 1}
+                      </span>
+                      <span className="min-w-0 flex-1">{n}</span>
+                    </li>
+                  ))}
+                </ol>
+              </ReportBlock>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 }
@@ -186,15 +197,17 @@ export function EntryReport({
   // rather than deleted, and that needs no confirmation.
   const destructive = entry.kind !== "activity";
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="print-root fixed inset-0 z-50 flex items-end justify-center sm:items-center">
       <motion.button
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
         aria-label={c.close}
-        className="absolute inset-0 cursor-default bg-black/25 backdrop-blur-sm"
+        className="print-hide absolute inset-0 cursor-default bg-black/25 backdrop-blur-sm"
       />
 
       <motion.div
@@ -205,32 +218,50 @@ export function EntryReport({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 16, scale: 0.98 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-        className="relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-border bg-card shadow-2xl sm:max-h-[86dvh] sm:max-w-xl sm:rounded-3xl"
+        className="print-shell relative flex max-h-[92dvh] w-full flex-col rounded-t-3xl border border-border bg-card shadow-2xl sm:max-h-[86dvh] sm:max-w-2xl sm:rounded-3xl"
       >
-        <header className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-5">
-          <div className="min-w-0">
-            <h2 className="text-lg font-medium text-heading">{TITLES[entry.kind]}</h2>
-            <p className="mt-0.5 text-[13px] text-muted-foreground">
+        <div className="print-sheet flex min-h-0 flex-1 flex-col">
+          <header className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-4">
+            <span className="flex items-center gap-2">
+              <Mark size={26} blink={false} />
+              <Wordmark height={17} className="text-heading" />
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => window.print()}
+                className="print-hide inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[12.5px] font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                <FileDown className="h-3.5 w-3.5" />
+                {c.exportPdf}
+              </button>
+              <button
+                onClick={onClose}
+                aria-label={c.close}
+                className="print-hide grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                <X className="h-[18px] w-[18px]" />
+              </button>
+            </div>
+          </header>
+
+          <div className="print-body min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <p className="mb-4 text-[13.5px] text-muted-foreground">
+              <span className="font-semibold text-heading">
+                {TITLES[entry.kind]} entry
+              </span>
+              <span aria-hidden className="px-2 text-border">
+                |
+              </span>
               {dayLabel(entry.day)} &middot; {dayStamp(entry.day)}
               {entry.kind !== "activity" && " · " + timeOf(entry.at)}
             </p>
+            {entry.kind === "reflection" && <ReflectionReport entry={entry} />}
+            {entry.kind === "manifestation" && <ManifestationReport entry={entry} />}
+            {entry.kind === "activity" && <ActivityReport entry={entry} />}
           </div>
-          <button
-            onClick={onClose}
-            aria-label={c.close}
-            className="-mr-1.5 -mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <X className="h-[18px] w-[18px]" />
-          </button>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-6">
-          {entry.kind === "reflection" && <ReflectionReport entry={entry} />}
-          {entry.kind === "manifestation" && <ManifestationReport entry={entry} />}
-          {entry.kind === "activity" && <ActivityReport entry={entry} />}
         </div>
 
-        <footer className="flex items-center justify-between gap-3 border-t border-border/60 px-6 py-4">
+        <footer className="print-hide flex items-center justify-between gap-3 border-t border-border/60 px-6 py-4">
           <AnimatePresence mode="wait" initial={false}>
             {confirming ? (
               <motion.div
@@ -267,6 +298,7 @@ export function EntryReport({
           </Button>
         </footer>
       </motion.div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -57,7 +57,6 @@ export const copy = {
       "I was kinder to myself.",
     ],
     blogEyebrow: "From the blog",
-    blogReadMore: "Read more",
   },
   reflect: {
     breadcrumb: "Innerly / Reflect",
@@ -189,6 +188,7 @@ export const copy = {
     noEntriesOnDayHint: "Pick another date, or clear the filter to see everything.",
     clearDate: "Clear date",
     close: "Close",
+    exportPdf: "Export to PDF",
     cancel: "Cancel",
     delete: "Delete",
     deleteConfirm: "Delete for good",

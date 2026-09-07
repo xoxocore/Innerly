@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Sparkles,
   Image as ImageIcon,
-  ArrowRight,
   Check,
   Plus,
   ListChecks,
@@ -17,7 +16,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MultiAdd } from "@/components/innerly/multi-add";
 import { copy, fill } from "@/lib/copy";
-import { BLOG_POSTS, gradient, type BlogPost } from "@/lib/content";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/state/app-context";
 import { useReflections, useTodayPlan, type TodayItem } from "@/state/use-data";
@@ -129,44 +127,7 @@ export function Dashboard() {
         <TodoList dateLabel={dateLabel} onOpenPlan={() => navigate("daily-plan")} />
         <NightCheckIn />
       </div>
-
-      {/* From the blog — two reads */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {BLOG_POSTS.slice(0, 2).map((post) => (
-          <BlogCard
-            key={post.slug}
-            post={post}
-            onClick={() => navigate("blog", post.slug)}
-          />
-        ))}
-      </div>
     </div>
-  );
-}
-
-function BlogCard({ post, onClick }: { post: BlogPost; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="block w-full text-left">
-      <Card className="group h-full overflow-hidden border-border/50 bg-card/45 backdrop-blur-2xl transition-colors hover:bg-accent/60">
-        <div
-          className="h-20 w-full"
-          style={{ backgroundImage: gradient(post.gradient) }}
-        />
-        <div className="p-5">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-            {post.category}
-          </p>
-          <h3 className="title-medium mt-1.5 text-sm text-heading">{post.title}</h3>
-          <p className="mt-1 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-            {post.excerpt}
-          </p>
-          <span className="mt-3 inline-flex items-center gap-1 text-[13px] font-medium text-foreground">
-            {c.blogReadMore}
-            <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </div>
-      </Card>
-    </button>
   );
 }
 

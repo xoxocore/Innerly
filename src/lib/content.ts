@@ -1,14 +1,4 @@
-// Seed content — blog posts and tutorials ported verbatim from the v48 build.
-
-export type BlogPost = {
-  slug: string;
-  title: string;
-  date: string;
-  category: string;
-  excerpt: string;
-  content: string;
-  gradient: [string, string];
-};
+// Seed content — tutorials ported verbatim from the v48 build.
 
 export type Tutorial = {
   slug: string;
@@ -22,42 +12,6 @@ export type Tutorial = {
 export function gradient([from, to]: readonly [string, string]) {
   return `linear-gradient(135deg, ${from}, ${to})`;
 }
-
-export const BLOG_POSTS: BlogPost[] = [
-  {
-    slug: "the-quiet-cost-of-overthinking",
-    title: "The quiet cost of overthinking",
-    date: "2026-05-20",
-    category: "Mindset",
-    gradient: ["#f6d6e0", "#e7e1f0"],
-    excerpt:
-      "Overthinking feels like progress — like if we just analyse a little longer, we'll finally feel ready. But often it's avoidance wearing a thoughtful disguise.",
-    content:
-      "<p>Overthinking feels like progress — like if we just analyse a little longer, we'll finally feel ready. But often it's avoidance wearing a thoughtful disguise.</p><p>The mind loops because looping feels safer than acting. Each replay gives the illusion of control while quietly draining the energy we'd need to move.</p><p>A gentler way through isn't to think harder, but to <strong>notice</strong>: write the loop down, read it back slowly, and ask what one small, honest step would look like. Awareness loosens the grip that analysis tightens.</p>",
-  },
-  {
-    slug: "why-patterns-repeat",
-    title: "Why patterns repeat — and how noticing breaks them",
-    date: "2026-05-12",
-    category: "Patterns",
-    gradient: ["#d7e8f2", "#eef0e6"],
-    excerpt:
-      "We rarely repeat patterns because we're weak. We repeat them because they once protected us. Seeing that clearly is where change begins.",
-    content:
-      "<p>We rarely repeat patterns because we're weak. We repeat them because they once protected us.</p><p>The behaviour that frustrates you today — avoiding, over-checking, pulling away — was probably a sensible response to an earlier moment. It worked then. It just isn't serving you now.</p><p>Change rarely comes from forcing. It comes from <em>observation</em>: catching the pattern mid-motion, naming it without judgment, and choosing differently the next small time it appears.</p>",
-  },
-  {
-    slug: "consistency-is-kindness",
-    title: "Consistency isn't discipline — it's kindness",
-    date: "2026-05-03",
-    category: "Habits",
-    gradient: ["#f0e3d6", "#e9dcec"],
-    excerpt:
-      "If consistency keeps collapsing into guilt, the problem may not be your willpower — it may be the way you're speaking to yourself about it.",
-    content:
-      "<p>If consistency keeps collapsing into guilt, the problem may not be your willpower — it may be the way you're speaking to yourself about it.</p><p>Shame is a poor motivator. It buys a day or two of effort, then a longer stretch of avoidance. Self-kindness is slower but steadier: it lets you miss a day and return without the spiral.</p><p>Try measuring consistency in returns, not streaks. The goal isn't to never fall off — it's to make coming back easy.</p>",
-  },
-];
 
 export const TUTORIALS: Tutorial[] = [
   {
