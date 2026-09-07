@@ -78,7 +78,7 @@ export function GoalThread({
         <button
           onClick={onDelete}
           aria-label="Delete goal"
-          className="mt-2 text-muted-foreground transition-colors hover:text-destructive"
+          className="mt-2 text-muted-foreground transition-colors hover:text-foreground"
         >
           <Trash className="h-5 w-5" />
         </button>
@@ -218,7 +218,7 @@ function SubGoalRow({
       <button
         onClick={onRemove}
         aria-label="Remove"
-        className="text-muted-foreground transition-opacity hover:text-destructive"
+        className="text-muted-foreground transition-opacity hover:text-foreground"
         style={{ opacity: hover ? 1 : 0 }}
       >
         <Trash className="h-4 w-4" />

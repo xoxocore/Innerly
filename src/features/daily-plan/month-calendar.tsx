@@ -156,7 +156,8 @@ export function MonthCalendar({
                   "grid h-[22px] w-[22px] shrink-0 place-items-center justify-self-start rounded-full text-[12px] tabular-nums",
                   !inMonth && "text-muted-foreground/40",
                   inMonth && !isToday && "text-foreground",
-                  isToday && "bg-[#FF3B30] font-medium text-white"
+                  isToday &&
+                    "bg-[var(--brand-green-strong)] font-medium text-white"
                 )}
               >
                 {d.getDate()}

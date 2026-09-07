@@ -173,13 +173,22 @@ export type GoalColor = {
   softDark: string;
 };
 
+/**
+ * The colours a goal can be given.
+ *
+ * Nothing in here is alarm red. These are handed out by position rather than
+ * chosen, so a red would land on somebody's ordinary Tuesday errand and read
+ * as a warning about it — and a plan you are being warned about is not one you
+ * want to open. The warm end of the range is a pink and a clay instead, which
+ * carry the same difference without the alarm.
+ */
 export const GOAL_COLORS: GoalColor[] = [
   { key: "blue", dot: "#007AFF", ink: "#0060DF", soft: "#E8F1FE", softDark: "#12233A" },
   { key: "emerald", dot: "#34C759", ink: "#1E8E3E", soft: "#E6F7EC", softDark: "#12301D" },
-  { key: "pink", dot: "#FF2D55", ink: "#D81B50", soft: "#FFE9EF", softDark: "#3A1421" },
+  { key: "pink", dot: "#F2709C", ink: "#C13F70", soft: "#FDECF2", softDark: "#3A1B27" },
   { key: "amber", dot: "#FF9500", ink: "#B96A0E", soft: "#FFF1E0", softDark: "#3A2610" },
   { key: "violet", dot: "#AF52DE", ink: "#8E3EBD", soft: "#F6EAFC", softDark: "#2C1638" },
-  { key: "rose", dot: "#FF3B30", ink: "#D32F2F", soft: "#FFEBE9", softDark: "#3A1714" },
+  { key: "rose", dot: "#C2867A", ink: "#9A5F52", soft: "#F8EFEC", softDark: "#322320" },
   { key: "teal", dot: "#5AC8FA", ink: "#0A7EA4", soft: "#E4F5FE", softDark: "#0F2A38" },
 ];
 
