@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from "react";
-import { EYES, JELLY_BODY, MARK_SRC } from "@/lib/logo";
+import { EYELID, EYES, MARK_SRC, SHUT } from "@/lib/logo";
 import { cn } from "@/lib/utils";
 
 /**
@@ -11,20 +11,24 @@ import { cn } from "@/lib/utils";
  * The artwork is drawn exactly as it was handed over — the only thing removed
  * from the file was the white behind her.
  *
- * She blinks by having a lid in her own body colour drawn over each eye for a
+ * She blinks by having a lid in her own skin colour drawn over each eye for a
  * moment and then taken away. Nothing about the drawing is edited to do it, so
  * the face at rest is the original picture and a blink cannot damage it. The
  * lid stops short of the bottom of the eye, which leaves the eye's own dark
  * edge showing as the closed line rather than inventing a new shape for it.
+ *
+ * She blinks twice each time, the way a person does when they are pleased to
+ * see you.
  */
-
-/** How far down the eye the lid comes. The rest is the closed eye showing. */
-const SHUT = 0.82;
 
 /** A blink, in milliseconds. Human ones are about this long. */
 const CLOSING = 90;
 const HELD = 60;
 const OPENING = 130;
+
+/** Blinks per blink, and the beat between them. */
+const TIMES = 2;
+const BETWEEN = 90;
 
 /** Somewhere between these, so she never falls into a rhythm. */
 const GAP_MIN = 3800;
@@ -62,9 +66,15 @@ export function Mark({
 
     const once = () => {
       if (stopped) return;
-      setShut(1);
-      later(() => setShut(0), CLOSING + HELD);
-      later(schedule, CLOSING + HELD + OPENING);
+      let at = 0;
+      for (let i = 0; i < TIMES; i++) {
+        later(() => setShut(1), at);
+        at += CLOSING + HELD;
+        later(() => setShut(0), at);
+        at += OPENING;
+        if (i < TIMES - 1) at += BETWEEN;
+      }
+      later(schedule, at);
     };
 
     const schedule = () => {
@@ -107,7 +117,7 @@ export function Mark({
             top: `${eye.top * 100}%`,
             width: `${eye.width * 100}%`,
             height: `${eye.height * shut * SHUT * 100}%`,
-            background: JELLY_BODY,
+            background: EYELID,
             transition: `height ${shut ? CLOSING : OPENING}ms ease-in-out`,
             pointerEvents: "none",
           }}
