@@ -26,16 +26,31 @@ const mkUser = () => ({
 let bad = 0;
 const check = (n, ok, x) => { if (!ok) bad++; console.log(`${ok ? "PASS" : "FAIL"}  ${n}${x ? "  — " + x : ""}`); };
 
+/** The tick beside one named action, wherever in the thread it sits. */
+const tickFor = (p, title) =>
+  p
+    .locator("li")
+    .filter({ has: p.locator(`input[value="${title}"]`) })
+    .getByRole("button", { name: "Mark complete" });
+
 const GOAL = {
   id: "goal-under-test",
   title: "Get Innerly Live",
   color: "blue",
   createdAt: new Date().toISOString(),
   order: 0,
+  // Yesterday, so the day turn has a night to carry things across.
+  lastReset: "2020-01-01",
   horizons: {
     year: [{ id: "s1", title: "Get 100,000 active users to Innerly", done: false }],
     sixMonths: [{ id: "s2", title: "Get 20,000 active users to Innerly", done: false }],
-    threeMonths: [], oneMonth: [], thisWeek: [], today: [],
+    threeMonths: [], oneMonth: [],
+    thisWeek: [{ id: "w1", title: "Fix the wording in the UI", done: false }],
+    today: [
+      { id: "t1", title: "Change the review card to white", done: false },
+      { id: "t2", title: "Innerly logo recreation", done: true,
+        completedAt: "2020-01-01T10:15:00.000Z" },
+    ],
   },
 };
 
@@ -86,7 +101,9 @@ async function open() {
 async function openGoal(p) {
   await p.getByRole("button", { name: "Daily Plan" }).first().click();
   await p.waitForTimeout(900);
-  await p.getByText(GOAL.title, { exact: true }).first().click();
+  // The goal's name also appears as the note under its own action in the day
+  // panel above, so the card in "Your goals" is the last of the two.
+  await p.getByText(GOAL.title, { exact: true }).last().click();
   await p.getByRole("button", { name: /All goals/ }).waitFor({ timeout: 8000 });
   await p.waitForTimeout(500);
 }
@@ -211,6 +228,125 @@ async function openGoal(p) {
     check("...with no colour cast between the channels",
       Math.max(r, g, bl) - Math.min(r, g, bl) <= 3, bg);
   }
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------------------------- the day, turned over */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  // Sub-actions are editable fields, so their words are values rather than
+  // text — innerText cannot see a single one of them.
+  const lines = () =>
+    p.locator("main input").evaluateAll((els) => els.map((e) => e.value));
+
+  const body = await p.locator("main").innerText();
+  check("yesterday's unfinished action came into today",
+    (await lines()).includes("Change the review card to white"),
+    (await lines()).join(" / "));
+  check("...saying that it was carried", /Rolled over/i.test(body),
+    body.split("\n").find((l) => /Rolled/i.test(l)) ?? "");
+  check("yesterday's finished action is off the working list",
+    !(await lines()).includes("Innerly logo recreation"),
+    (await lines()).join(" / "));
+
+  const kept = await p.evaluate(
+    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].wins ?? []
+  );
+  check("...kept in the record of wins rather than thrown away",
+    kept.some((w) => w.title === "Innerly logo recreation"),
+    JSON.stringify(kept.map((w) => w.title)));
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------------------------- today's own wins fold away */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  const lines = () =>
+    p.locator("main input").evaluateAll((els) => els.map((e) => e.value));
+  check("the drawer is not there while nothing has been finished today",
+    (await p.getByRole("button", { name: /Completed wins/i }).count()) === 0);
+
+  await tickFor(p, "Change the review card to white").click();
+  await p.waitForTimeout(800);
+
+  check("finishing something takes it off the working list",
+    !(await lines()).includes("Change the review card to white"),
+    (await lines()).join(" / "));
+
+  const drawer = p.getByRole("button", { name: /Completed wins/i });
+  check("...and folds it into the wins drawer", (await drawer.count()) > 0);
+  check("...counted", /Completed wins \(1\)/i.test(await drawer.innerText()),
+    await drawer.innerText());
+  check("the drawer is shut until it is opened",
+    !(await p.locator("main").innerText()).includes("Change the review card"));
+
+  await drawer.click();
+  await p.waitForTimeout(500);
+  check("...and opens to show what was done",
+    (await p.locator("main").innerText()).includes("Change the review card to white"));
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* --------------------------------------------------------------- the waterfall */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  // Finish the last thing left in Today; This Week's action should drop in.
+  await tickFor(p, "Change the review card to white").click();
+  await p.waitForTimeout(900);
+
+  // Checked against what was stored, not against the page: "Fix the wording"
+  // is on screen either way, so reading the page could never tell whether it
+  // had actually moved.
+  const stored = await p.evaluate(
+    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
+  );
+  check("clearing today pulls the week's action down",
+    stored.today.some((s) => s.id === "w1"),
+    JSON.stringify(stored.today.map((s) => s.id)));
+  check("...and it really left the week", stored.thisWeek.length === 0,
+    JSON.stringify(stored.thisWeek));
+
+  const after = await p.locator("main").innerText();
+  check("...marked as having come from a longer horizon",
+    /From This Week/i.test(after),
+    after.split("\n").find((l) => /From /i.test(l)) ?? "");
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------------------------- moving one down by hand */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  const move = p.getByRole("button", { name: /Move .* to Today/ });
+  check("a longer-horizon action offers to come down", (await move.count()) > 0,
+    `${await move.count()} offered`);
+  check("...but Today itself offers nothing lower",
+    (await move.count()) < (await p.locator("input[value]").count()));
+
+  await move.first().click();
+  await p.waitForTimeout(700);
+  const moved = await p.evaluate(
+    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
+  );
+  check("pressing it moves the action into today",
+    moved.today.some((s) => s.id === "s1"),
+    JSON.stringify(moved.today.map((s) => s.id)));
+  check("...and out of where it was", !moved.year.some((s) => s.id === "s1"));
+
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }

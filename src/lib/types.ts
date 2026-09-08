@@ -42,6 +42,12 @@ export type SubGoal = {
   id: string;
   title: string;
   done: boolean;
+  /** When it was ticked — what the completed log is ordered and dated by. */
+  completedAt?: string;
+  /** Carried into a new day without having been finished. */
+  rolledOver?: boolean;
+  /** The longer horizon the cascade dropped this down from. */
+  promotedFrom?: Horizon;
 };
 
 export type Goal = {
@@ -52,6 +58,10 @@ export type Goal = {
   createdAt: string;
   order: number;
   horizons: Record<Horizon, SubGoal[]>;
+  /** Finished Today actions from days that have already closed. */
+  wins?: SubGoal[];
+  /** The day this goal's Today list was last carried forward. */
+  lastReset?: string;
 };
 
 export function emptyHorizons(): Record<Horizon, SubGoal[]> {
@@ -206,7 +216,14 @@ function normSub(s: unknown): SubGoal | null {
     id: typeof o.id === "string" ? o.id : rid(),
     title: typeof o.title === "string" ? o.title : "",
     done: !!o.done,
+    completedAt: typeof o.completedAt === "string" ? o.completedAt : undefined,
+    rolledOver: o.rolledOver === true ? true : undefined,
+    promotedFrom: isHorizon(o.promotedFrom) ? o.promotedFrom : undefined,
   };
+}
+
+function isHorizon(v: unknown): v is Horizon {
+  return typeof v === "string" && HORIZONS.some((h) => h.key === v);
 }
 
 // Coerce any stored value into a valid Goal. Migrates the old `{ steps: [] }`
@@ -242,6 +259,10 @@ export function normalizeGoal(raw: unknown, index = 0): Goal {
     createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date().toISOString(),
     order: typeof o.order === "number" ? o.order : index,
     horizons,
+    wins: Array.isArray(o.wins)
+      ? (o.wins.map(normSub).filter(Boolean) as SubGoal[])
+      : undefined,
+    lastReset: typeof o.lastReset === "string" ? o.lastReset : undefined,
   };
 }
 

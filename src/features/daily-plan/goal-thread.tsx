@@ -7,7 +7,16 @@ import {
   Reorder,
   useDragControls,
 } from "framer-motion";
-import { ArrowLeft, Trash, Plus, Check, GripVertical } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  GripVertical,
+  Plus,
+  Trash,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   GOAL_COLORS,
@@ -17,6 +26,7 @@ import {
   type Horizon,
   type SubGoal,
 } from "@/lib/types";
+import { completeSub, moveSub, winsToday } from "@/lib/cascade";
 import { useApp } from "@/state/app-context";
 import { uid } from "@/state/use-data";
 
@@ -46,6 +56,16 @@ export function GoalThread({
       h,
       goal.horizons[h].map((s) => (s.id === id ? { ...s, ...patch } : s))
     );
+
+  /** Today hides what is finished; every other tier shows its whole queue. */
+  const visible = (h: Horizon) =>
+    h === "today" ? goal.horizons.today.filter((s) => !s.done) : goal.horizons[h];
+
+  const onComplete = (h: Horizon, id: string) =>
+    onUpdate(completeSub(goal, h, id));
+
+  const onMoveToToday = (from: Horizon, id: string) =>
+    onUpdate(moveSub(goal, from, "today", id));
 
   const removeSub = (h: Horizon, id: string) =>
     setHorizon(
@@ -118,24 +138,33 @@ export function GoalThread({
                   {label}
                 </p>
 
+                {/* Today keeps only what is still to do; the day's finished
+                    work steps aside into the drawer below rather than sitting
+                    on a working list with a line through it. */}
                 <Reorder.Group
                   axis="y"
-                  values={goal.horizons[key]}
-                  onReorder={(next) => setHorizon(key, next as SubGoal[])}
+                  values={visible(key)}
+                  onReorder={(next) =>
+                    setHorizon(key, [
+                      ...(next as SubGoal[]),
+                      ...goal.horizons[key].filter((s) => !visible(key).includes(s)),
+                    ])
+                  }
                   className="mt-2 space-y-0.5"
                 >
                   <AnimatePresence initial={false}>
-                    {goal.horizons[key].map((sub) => (
+                    {visible(key).map((sub) => (
                       <SubGoalRow
                         key={sub.id}
                         sub={sub}
                         soft={soft}
                         dot={color.dot}
-                        onToggle={() =>
-                          updateSub(key, sub.id, { done: !sub.done })
-                        }
+                        onToggle={() => onComplete(key, sub.id)}
                         onChange={(title) => updateSub(key, sub.id, { title })}
                         onRemove={() => removeSub(key, sub.id)}
+                        onMoveToToday={
+                          key === "today" ? undefined : () => onMoveToToday(key, sub.id)
+                        }
                       />
                     ))}
                   </AnimatePresence>
@@ -147,6 +176,13 @@ export function GoalThread({
                 >
                   <Plus className="h-3.5 w-3.5" /> {addLabel}
                 </button>
+
+                {key === "today" && (
+                  <CompletedWins
+                    wins={winsToday(goal)}
+                    onUndo={(id) => onComplete("today", id)}
+                  />
+                )}
               </motion.div>
             </div>
           ))}
@@ -164,6 +200,94 @@ export function GoalThread({
  * where they look for that, not a settings screen. Picking one closes the row
  * again, because this is a decision, not a panel.
  */
+/**
+ * A quiet note on a sub-action about how it came to be here.
+ *
+ * Both things it says are true and neither is a reproach: something carried
+ * from yesterday is not a failure, and something the cascade dropped down is
+ * not something the person forgot they wrote.
+ */
+function Badge({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+      {children}
+    </span>
+  );
+}
+
+function shortLabel(h: Horizon): string {
+  return HORIZONS.find((x) => x.key === h)?.label ?? h;
+}
+
+/**
+ * The day's finished work, folded away.
+ *
+ * Out of the working list, because a list of things to do should be things
+ * left to do — but not deleted, because seeing what a day actually came to is
+ * most of the reason for keeping one. Shut by default; a day's wins are a
+ * thing to look at on purpose, not a thing to scroll past.
+ */
+function CompletedWins({
+  wins,
+  onUndo,
+}: {
+  wins: SubGoal[];
+  onUndo: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (wins.length === 0) return null;
+
+  return (
+    <div className="mt-2 border-t border-dashed border-border/70 pt-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
+        <CheckCircle2 className="h-3.5 w-3.5 text-[var(--brand-green-ink)]" />
+        Completed wins ({wins.length})
+        <ChevronDown
+          className={cn("h-3 w-3 transition-transform", open && "rotate-180")}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.ul
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            {wins.map((w) => (
+              <li key={w.id} className="flex items-center gap-2 px-2 py-1">
+                <button
+                  onClick={() => onUndo(w.id)}
+                  aria-label={`Put "${w.title}" back on today's list`}
+                  className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-[var(--brand-green-strong)]"
+                >
+                  <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />
+                </button>
+                <span className="min-w-0 flex-1 truncate text-[12.5px] text-muted-foreground line-through">
+                  {w.title}
+                </span>
+                {w.completedAt && (
+                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground/70">
+                    {new Date(w.completedAt).toLocaleTimeString("en-US", {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                )}
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function ColorPicker({
   value,
   onPick,
@@ -248,6 +372,7 @@ function SubGoalRow({
   onToggle,
   onChange,
   onRemove,
+  onMoveToToday,
 }: {
   sub: SubGoal;
   soft: string;
@@ -255,6 +380,8 @@ function SubGoalRow({
   onToggle: () => void;
   onChange: (title: string) => void;
   onRemove: () => void;
+  /** Absent on Today itself, which is as far down as anything goes. */
+  onMoveToToday?: () => void;
 }) {
   const controls = useDragControls();
   const [hover, setHover] = useState(false);
@@ -294,15 +421,33 @@ function SubGoalRow({
         {sub.done && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3.5} />}
       </button>
 
-      <input
-        value={sub.title}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Write what you'll achieve…"
-        className={cn(
-          "min-w-0 flex-1 bg-transparent text-[13px] leading-snug outline-none placeholder:text-muted-foreground/50",
-          sub.done && "text-muted-foreground line-through"
+      <span className="flex min-w-0 flex-1 items-center gap-1.5">
+        <input
+          value={sub.title}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Write what you'll achieve…"
+          className={cn(
+            "min-w-0 flex-1 bg-transparent text-[13px] leading-snug outline-none placeholder:text-muted-foreground/50",
+            sub.done && "text-muted-foreground line-through"
+          )}
+        />
+        {sub.rolledOver && !sub.done && <Badge>Rolled over</Badge>}
+        {sub.promotedFrom && !sub.done && (
+          <Badge>From {shortLabel(sub.promotedFrom)}</Badge>
         )}
-      />
+      </span>
+
+      {onMoveToToday && !sub.done && (
+        <button
+          onClick={onMoveToToday}
+          aria-label={`Move "${sub.title || "this"}" to Today`}
+          title="Move to Today"
+          className="shrink-0 text-muted-foreground transition-opacity hover:text-foreground"
+          style={{ opacity: hover ? 1 : 0 }}
+        >
+          <ArrowDownToLine className="h-3.5 w-3.5" />
+        </button>
+      )}
 
       <button
         onClick={onRemove}
