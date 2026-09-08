@@ -26,7 +26,14 @@ import {
   type Horizon,
   type SubGoal,
 } from "@/lib/types";
-import { completeSub, moveSub, winsToday } from "@/lib/cascade";
+import {
+  completeStep,
+  completeSub,
+  editSteps,
+  moveSub,
+  stepProgress,
+  winsToday,
+} from "@/lib/cascade";
 import { useApp } from "@/state/app-context";
 import { uid } from "@/state/use-data";
 
@@ -66,6 +73,29 @@ export function GoalThread({
 
   const onMoveToToday = (from: Horizon, id: string) =>
     onUpdate(moveSub(goal, from, "today", id));
+
+  const onStep = (h: Horizon, subId: string, stepId: string) =>
+    onUpdate(completeStep(goal, h, subId, stepId));
+
+  const onAddStep = (h: Horizon, subId: string) =>
+    onUpdate(
+      editSteps(goal, h, subId, (steps) => [
+        ...steps,
+        { id: uid(), title: "", done: false },
+      ])
+    );
+
+  const onStepTitle = (h: Horizon, subId: string, stepId: string, title: string) =>
+    onUpdate(
+      editSteps(goal, h, subId, (steps) =>
+        steps.map((t) => (t.id === stepId ? { ...t, title } : t))
+      )
+    );
+
+  const onDropStep = (h: Horizon, subId: string, stepId: string) =>
+    onUpdate(
+      editSteps(goal, h, subId, (steps) => steps.filter((t) => t.id !== stepId))
+    );
 
   const removeSub = (h: Horizon, id: string) =>
     setHorizon(
@@ -165,6 +195,12 @@ export function GoalThread({
                         onMoveToToday={
                           key === "today" ? undefined : () => onMoveToToday(key, sub.id)
                         }
+                        onStep={(stepId) => onStep(key, sub.id, stepId)}
+                        onAddStep={() => onAddStep(key, sub.id)}
+                        onStepTitle={(stepId, title) =>
+                          onStepTitle(key, sub.id, stepId, title)
+                        }
+                        onDropStep={(stepId) => onDropStep(key, sub.id, stepId)}
                       />
                     ))}
                   </AnimatePresence>
@@ -373,6 +409,10 @@ function SubGoalRow({
   onChange,
   onRemove,
   onMoveToToday,
+  onStep,
+  onAddStep,
+  onStepTitle,
+  onDropStep,
 }: {
   sub: SubGoal;
   soft: string;
@@ -382,9 +422,14 @@ function SubGoalRow({
   onRemove: () => void;
   /** Absent on Today itself, which is as far down as anything goes. */
   onMoveToToday?: () => void;
+  onStep: (stepId: string) => void;
+  onAddStep: () => void;
+  onStepTitle: (stepId: string, title: string) => void;
+  onDropStep: (stepId: string) => void;
 }) {
   const controls = useDragControls();
   const [hover, setHover] = useState(false);
+  const progress = stepProgress(sub);
 
   return (
     <Reorder.Item
@@ -397,9 +442,10 @@ function SubGoalRow({
       transition={{ type: "spring", stiffness: 500, damping: 40 }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="group flex items-center gap-1.5 rounded-lg px-1.5 py-1"
+      className="group rounded-lg px-1.5 py-1"
       style={{ backgroundColor: hover ? soft : "transparent" }}
     >
+      <div className="flex items-center gap-1.5">
       <button
         onPointerDown={(e) => controls.start(e)}
         aria-label="Drag to reorder"
@@ -431,6 +477,11 @@ function SubGoalRow({
             sub.done && "text-muted-foreground line-through"
           )}
         />
+        {progress && (
+          <span className="shrink-0 rounded-full bg-secondary px-1.5 py-0.5 text-[9.5px] font-semibold tabular-nums text-muted-foreground">
+            {progress.done}/{progress.total}
+          </span>
+        )}
         {sub.rolledOver && !sub.done && <Badge>Rolled over</Badge>}
         {sub.promotedFrom && !sub.done && (
           <Badge>From {shortLabel(sub.promotedFrom)}</Badge>
@@ -457,6 +508,62 @@ function SubGoalRow({
       >
         <Trash className="h-3.5 w-3.5" />
       </button>
+      </div>
+
+      {/* The steps, joined to their heading by a rule in the goal's own colour.
+          That line is the whole of the link: it says these belong to the thing
+          above them, and it travels with the sub-goal when the cascade carries
+          it down to another horizon. */}
+      {(progress || hover) && (
+        <div
+          className="ml-[13px] border-l pl-3"
+          style={{ borderColor: dot, opacity: 0.5 }}
+        >
+          <div style={{ opacity: 1 / 0.5 }}>
+            {sub.steps?.map((step) => (
+              <div key={step.id} className="group/step flex items-center gap-2 py-[3px]">
+                <button
+                  onClick={() => onStep(step.id)}
+                  aria-label={step.done ? "Mark step incomplete" : "Mark step complete"}
+                  className="grid h-[13px] w-[13px] shrink-0 place-items-center rounded-[4px] border transition-colors"
+                  style={{
+                    borderColor: dot,
+                    backgroundColor: step.done ? dot : "transparent",
+                  }}
+                >
+                  {step.done && (
+                    <Check className="h-2 w-2 text-white" strokeWidth={4} />
+                  )}
+                </button>
+                <input
+                  value={step.title}
+                  onChange={(e) => onStepTitle(step.id, e.target.value)}
+                  placeholder="A smaller piece of it…"
+                  className={cn(
+                    "min-w-0 flex-1 bg-transparent text-[12px] leading-snug outline-none placeholder:text-muted-foreground/50",
+                    step.done && "text-muted-foreground line-through"
+                  )}
+                />
+                <button
+                  onClick={() => onDropStep(step.id)}
+                  aria-label="Remove step"
+                  className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/step:opacity-100"
+                >
+                  <Trash className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+
+            <button
+              onClick={onAddStep}
+              className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              style={{ opacity: progress ? 1 : hover ? 1 : 0 }}
+            >
+              <Plus className="h-3 w-3" /> Add step
+            </button>
+          </div>
+        </div>
+      )}
     </Reorder.Item>
   );
 }

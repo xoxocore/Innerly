@@ -12,7 +12,8 @@
 
 // Node strips the types itself, so the real module is the one under test —
 // no transpiled copy that might differ from what the app actually runs.
-const { cascade, completeSub, turnDay, turnAll, moveSub, winsToday, openToday } =
+const { cascade, completeSub, completeStep, editSteps, stepProgress,
+  turnDay, turnAll, moveSub, winsToday, openToday } =
   await import("../src/lib/cascade.ts");
 
 let bad = 0;
@@ -196,6 +197,99 @@ const titles = (list) => list.map((s) => s.title);
   const g = goal({ today: [sub("a", "Open"), sub("b", "Won", true)] });
   check("the day shows what is left", titles(openToday(g)).join() === "Open");
   check("...and counts what was won", titles(winsToday(g)).join() === "Won");
+}
+
+/* -------------------------------------------------------------- steps */
+
+const step = (id, title, done = false) => ({ id, title, done });
+
+{
+  const g = goal({
+    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [
+      step("p1", "Home page"), step("p2", "Daily plan page"),
+    ] }],
+  });
+
+  const one = completeStep(g, "thisWeek", "w1", "p1");
+  check("ticking one step leaves the heading open",
+    one.horizons.thisWeek[0].done === false,
+    JSON.stringify(stepProgress(one.horizons.thisWeek[0])));
+
+  const both = completeStep(one, "thisWeek", "w1", "p2");
+  check("ticking the last step finishes the heading",
+    both.horizons.thisWeek[0].done === true);
+  check("...and dates it", !!both.horizons.thisWeek[0].completedAt);
+
+  const reopened = completeStep(both, "thisWeek", "w1", "p2");
+  check("reopening a step reopens the heading",
+    reopened.horizons.thisWeek[0].done === false);
+  check("...and clears its date",
+    reopened.horizons.thisWeek[0].completedAt === undefined);
+}
+
+{
+  const g = goal({
+    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [
+      step("p1", "Home page"), step("p2", "Daily plan page"),
+    ] }],
+  });
+  const ticked = completeSub(g, "thisWeek", "w1");
+  check("ticking the heading ticks everything under it",
+    ticked.horizons.thisWeek[0].steps.every((t) => t.done));
+  const back = completeSub(ticked, "thisWeek", "w1");
+  check("...and unticking it reopens them all",
+    back.horizons.thisWeek[0].steps.every((t) => !t.done));
+}
+
+{
+  const g = goal({
+    oneMonth: [sub("m1", "Next thing")],
+    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [step("p1", "Home page")] }],
+  });
+  const after = completeStep(g, "thisWeek", "w1", "p1");
+  check("finishing a heading through its steps still sets the cascade off",
+    titles(after.horizons.thisWeek).includes("Next thing"),
+    titles(after.horizons.thisWeek).join(" / "));
+}
+
+{
+  const g = goal({ thisWeek: [sub("w1", "One clear thing")] });
+  check("a sub-goal with no steps reports no progress",
+    stepProgress(g.horizons.thisWeek[0]) === null);
+  check("...and is still ticked by hand",
+    completeSub(g, "thisWeek", "w1").horizons.thisWeek[0].done === true);
+}
+
+{
+  const withSteps = goal({
+    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [step("p1", "Home")] }],
+  });
+  const added = editSteps(withSteps, "thisWeek", "w1", (steps) => [
+    ...steps, step("p2", "Daily plan"),
+  ]);
+  check("a step can be added", stepProgress(added.horizons.thisWeek[0]).total === 2);
+
+  const finished = completeStep(completeStep(added, "thisWeek", "w1", "p1"),
+    "thisWeek", "w1", "p2");
+  check("...and the heading follows the new count",
+    finished.horizons.thisWeek[0].done === true);
+
+  // Removing the last unfinished step should finish the heading, not strand it.
+  const two = editSteps(withSteps, "thisWeek", "w1", (steps) => [
+    ...steps, step("p2", "Daily plan"),
+  ]);
+  const oneDone = completeStep(two, "thisWeek", "w1", "p1");
+  const pruned = editSteps(oneDone, "thisWeek", "w1", (steps) =>
+    steps.filter((t) => t.id !== "p2")
+  );
+  check("removing the last unfinished step finishes the heading",
+    pruned.horizons.thisWeek[0].done === true,
+    JSON.stringify(stepProgress(pruned.horizons.thisWeek[0])));
+
+  const emptied = editSteps(oneDone, "thisWeek", "w1", () => []);
+  check("taking every step away hands the tick back",
+    emptied.horizons.thisWeek[0].done === false &&
+      stepProgress(emptied.horizons.thisWeek[0]) === null);
 }
 
 console.log(bad ? `\n${bad} failing` : "\nall good");

@@ -1,4 +1,4 @@
-import { HORIZONS, type Goal, type Horizon, type SubGoal } from "./types";
+import { HORIZONS, type Goal, type Horizon, type Step, type SubGoal } from "./types";
 
 /**
  * The goal cascade, and the turn of the day.
@@ -67,19 +67,83 @@ export function cascade(goal: Goal, refillEmpty: Horizon[] = []): Goal {
   return moved ? { ...goal, horizons } : goal;
 }
 
+/**
+ * A sub-goal broken into steps is finished exactly when its steps are.
+ *
+ * Which means the tick on the parent stops being something to set and becomes
+ * something to read. Ticking the last step finishes the whole line, and
+ * reopening any step reopens it — nobody has to remember to go back and tick
+ * the heading they already satisfied.
+ */
+export function settle(sub: SubGoal): SubGoal {
+  const steps = sub.steps;
+  if (!steps || steps.length === 0) return sub;
+
+  const done = steps.every((t) => t.done);
+  if (done === sub.done) return sub;
+  return {
+    ...sub,
+    done,
+    completedAt: done ? new Date().toISOString() : undefined,
+  };
+}
+
 /** Ticking a sub-action, with whatever the cascade makes of it. */
 export function completeSub(goal: Goal, horizon: Horizon, id: string): Goal {
-  const list = goal.horizons[horizon].map((s) =>
-    s.id === id
-      ? {
-          ...s,
-          done: !s.done,
-          completedAt: s.done ? undefined : new Date().toISOString(),
-        }
-      : s
-  );
+  const list = goal.horizons[horizon].map((s) => {
+    if (s.id !== id) return s;
+    const done = !s.done;
+    return {
+      ...s,
+      done,
+      completedAt: done ? new Date().toISOString() : undefined,
+      // Ticking a heading means its parts are done, and unticking it means
+      // they are not. Leaving the steps behind would show a finished line
+      // sitting above unfinished work.
+      steps: s.steps?.map((t) => ({ ...t, done })),
+    };
+  });
   const next = { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
   return cascade(next);
+}
+
+/** Ticking one step, and letting its heading follow. */
+export function completeStep(
+  goal: Goal,
+  horizon: Horizon,
+  subId: string,
+  stepId: string
+): Goal {
+  const list = goal.horizons[horizon].map((s) =>
+    s.id === subId
+      ? settle({
+          ...s,
+          steps: s.steps?.map((t) =>
+            t.id === stepId ? { ...t, done: !t.done } : t
+          ),
+        })
+      : s
+  );
+  return cascade({ ...goal, horizons: { ...goal.horizons, [horizon]: list } });
+}
+
+/** Adding, renaming and removing the parts of a sub-goal. */
+export function editSteps(
+  goal: Goal,
+  horizon: Horizon,
+  subId: string,
+  change: (steps: Step[]) => Step[]
+): Goal {
+  const list = goal.horizons[horizon].map((s) =>
+    s.id === subId ? settle({ ...s, steps: change(s.steps ?? []) }) : s
+  );
+  return cascade({ ...goal, horizons: { ...goal.horizons, [horizon]: list } });
+}
+
+/** How far through its steps a sub-goal is, or null when it has none. */
+export function stepProgress(sub: SubGoal): { done: number; total: number } | null {
+  if (!sub.steps || sub.steps.length === 0) return null;
+  return { done: sub.steps.filter((t) => t.done).length, total: sub.steps.length };
 }
 
 /**
