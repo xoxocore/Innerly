@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { ImagePlus, Upload, Link2, X } from "lucide-react";
+import { ImagePlus, Upload, Link2, Smile, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { fileToDataUrl } from "./image";
+import { EmojiPicker } from "@/components/innerly/emoji-picker";
 import { RichText } from "./rich-text";
 
 export type VisionDraft = {
@@ -31,7 +32,9 @@ export function VisionComposer({
   onCancel: () => void;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
   const [title, setTitle] = useState(initial?.title ?? "");
+  const [pickingEmoji, setPickingEmoji] = useState(false);
   const [description, setDescription] = useState(initial?.description ?? "");
   const [imageUrl, setImageUrl] = useState(initial?.imageUrl ?? "");
   // Only survives if the photo is left alone; every control below clears it.
@@ -67,6 +70,26 @@ export function VisionComposer({
     } finally {
       setSaving(false);
     }
+  };
+
+  /**
+   * Dropped where the caret was, not glued onto the end.
+   *
+   * A topic is a short line and the emoji usually belongs at its front or in
+   * the middle of it — appending would mean typing the topic, adding the
+   * emoji, then dragging it back into place every time.
+   */
+  const addEmoji = (emoji: string) => {
+    const el = titleRef.current;
+    const at = el?.selectionStart ?? title.length;
+    const next = title.slice(0, at) + emoji + title.slice(el?.selectionEnd ?? at);
+    setTitle(next);
+    setPickingEmoji(false);
+    requestAnimationFrame(() => {
+      el?.focus();
+      const caret = at + emoji.length;
+      el?.setSelectionRange(caret, caret);
+    });
   };
 
   const canSave = title.trim().length > 0;
@@ -136,13 +159,43 @@ export function VisionComposer({
 
         {/* Text */}
         <div className="flex flex-col">
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Topic — e.g. A calm morning routine"
-            autoFocus
-            className="w-full rounded-2xl border border-border/60 bg-card/70 px-3.5 py-2.5 text-[14px] font-semibold outline-none backdrop-blur-sm focus:border-ring"
-          />
+          {/* Lifted above the description below it: both wrappers blur their
+              backdrop, which makes each its own stacking context, so the
+              picker's own z-index cannot reach past this box on its own and
+              the emoji grid would open behind the editor. */}
+          <div className="relative z-30 flex items-center gap-1 rounded-2xl border border-border/60 bg-card/70 pr-1 backdrop-blur-sm focus-within:border-ring">
+            <input
+              ref={titleRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Topic — e.g. A calm morning routine"
+              autoFocus
+              className="min-w-0 flex-1 bg-transparent px-3.5 py-2.5 text-[14px] font-semibold outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setPickingEmoji((o) => !o)}
+              aria-label="Add an emoji to the topic"
+              aria-expanded={pickingEmoji}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Smile className="h-4 w-4" />
+            </button>
+            {pickingEmoji && (
+              <>
+                <button
+                  type="button"
+                  aria-hidden
+                  tabIndex={-1}
+                  onClick={() => setPickingEmoji(false)}
+                  className="fixed inset-0 z-10 cursor-default"
+                />
+                <div className="absolute right-0 top-11 z-20">
+                  <EmojiPicker onPick={addEmoji} />
+                </div>
+              </>
+            )}
+          </div>
 
           <p className="mb-1.5 mt-3.5 text-[10px] font-medium uppercase tracking-[0.16em] text-muted-foreground">
             Description <span className="font-normal lowercase tracking-normal">(optional)</span>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ImagePlus, Trash } from "lucide-react";
+import { Plus, ImagePlus, Shuffle, Trash } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ScreenHeader } from "@/components/innerly/screen-header";
 import { copy } from "@/lib/copy";
@@ -113,6 +113,32 @@ export function VisionBoard() {
     }
     setComposerOpen(false);
     setEditing(null);
+  };
+
+  /**
+   * Deal the year's visions again.
+   *
+   * A board you keep is a board you stop seeing — the first card becomes the
+   * only one you ever really look at. Shuffling is the cheapest way to make
+   * the eighth card land in front of you, so the order is written back rather
+   * than only re-rendered.
+   *
+   * Fisher-Yates, and never a no-op: on two or more cards it keeps drawing
+   * until the order actually changes, because a shuffle that leaves the board
+   * exactly as it was reads as a broken button.
+   */
+  const shuffle = () => {
+    if (!active || active.items.length < 2) return;
+    const before = active.items.map((i) => i.id).join();
+    let next = active.items;
+    do {
+      next = [...next];
+      for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [next[i], next[j]] = [next[j], next[i]];
+      }
+    } while (next.map((i) => i.id).join() === before);
+    patchYear(active.id, { items: next });
   };
 
   const removeItem = (itemId: string) => {
@@ -231,6 +257,15 @@ export function VisionBoard() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {visions > 1 && (
+                <button
+                  onClick={shuffle}
+                  aria-label="Shuffle the board"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <Shuffle className="h-3.5 w-3.5" /> Shuffle
+                </button>
+              )}
               {!composerOpen && (
                 <button
                   onClick={() => {
