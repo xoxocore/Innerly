@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Copy, Heart, ImageDown, Link2, Loader2, X } from "lucide-react";
+import { Check, Copy, Heart, ImageDown, Link2, Loader2, Send, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { VisionItem } from "@/lib/types";
 import { shareVision, type ShareOutcome } from "./share-card";
 import {
+  copyBySelection,
   fetchShares,
   shareUrl,
   shareVisionLink,
@@ -39,6 +40,8 @@ export function ShareSheet({
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState<ShareOutcome | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  const linkRef = useRef<HTMLInputElement>(null);
+  const canSend = typeof navigator !== "undefined" && typeof navigator.share === "function";
 
   // Reading only: a card already being shared shows its link and its hearts,
   // and one that is not shows neither.
@@ -59,15 +62,17 @@ export function ShareSheet({
     };
   }, [item.id]);
 
+  // Deliberately does not copy afterwards. Making the link is a round trip to
+  // the server, and a browser only allows the clipboard to be written while a
+  // press is still fresh — so the copy that used to happen here was silently
+  // refused every time, and the link never reached anybody's clipboard.
+  // Copying is its own press now, which is a press the browser will honour.
   const makeLink = async () => {
     setBusy(true);
     setFailed(null);
     try {
       const made = await shareVisionLink(item);
-      if (made) {
-        setToken(made);
-        await copy(shareUrl(made));
-      }
+      if (made) setToken(made);
     } catch (e) {
       setFailed(e instanceof Error ? e.message : "That didn't work.");
     } finally {
@@ -75,13 +80,47 @@ export function ShareSheet({
     }
   };
 
+  /**
+   * Copy, by whichever means this browser allows.
+   *
+   * The modern clipboard is refused in more places than it looks — an older
+   * browser, a page inside a frame, a permission not granted — and a Copy
+   * button that quietly does nothing is worse than one that admits it. So
+   * there is a fallback, and past the fallback the link is selected and the
+   * person is told to copy it themselves.
+   */
   const copy = async (url: string) => {
+    setFailed(null);
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
       setTimeout(() => setCopied(false), 2200);
+      return;
     } catch {
-      setFailed("Couldn't copy — select the link and copy it by hand.");
+      // Fall through to the older way.
+    }
+    if (linkRef.current && copyBySelection(linkRef.current)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+      return;
+    }
+    linkRef.current?.select();
+    setFailed("Your browser wouldn't let me copy it — the link is selected, so press Ctrl/Cmd + C.");
+  };
+
+  /**
+   * The share sheet the phone already has.
+   *
+   * On a phone this is the whole point: it opens WhatsApp, Messages and the
+   * rest with the link already in hand, instead of asking somebody to copy
+   * something and go and find the app themselves.
+   */
+  const sendIt = async () => {
+    if (!token || typeof navigator.share !== "function") return;
+    try {
+      await navigator.share({ title: item.title, url: shareUrl(token) });
+    } catch {
+      // Dismissing the sheet lands here too, so there is nothing to report.
     }
   };
 
@@ -146,6 +185,7 @@ export function ShareSheet({
               <div className="flex items-center gap-2 rounded-2xl border border-border bg-background px-3 py-2">
                 <Link2 className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <input
+                  ref={linkRef}
                   readOnly
                   value={url}
                   onFocus={(e) => e.currentTarget.select()}
@@ -164,6 +204,16 @@ export function ShareSheet({
                   )}
                 </button>
               </div>
+
+              {canSend && (
+                <button
+                  onClick={sendIt}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl px-3.5 py-2.5 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: "var(--brand-green-strong)" }}
+                >
+                  <Send className="h-3.5 w-3.5" /> Send it
+                </button>
+              )}
 
               <p className="mt-2.5 flex items-center gap-1.5 text-[12px] text-muted-foreground">
                 <Heart
@@ -192,7 +242,7 @@ export function ShareSheet({
                 style={{ backgroundColor: "var(--brand-green-strong)" }}
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {busy ? "Making a link…" : "Create a link and copy it"}
+                {busy ? "Making a link…" : "Create a link"}
               </button>
               <p className="mt-2 text-[11.5px] leading-relaxed text-muted-foreground">
                 {sharingAvailable()

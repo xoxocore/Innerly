@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ImagePlus, Shuffle, Trash } from "lucide-react";
+import { Plus, ImagePlus, Trash } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ScreenHeader } from "@/components/innerly/screen-header";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
-import { gradient } from "@/lib/content";
 import { ACCENTS, type VisionItem, type VisionYear } from "@/lib/types";
 import { useVisionBoard, useVisionImageMigration, uid } from "@/state/use-data";
 import {
@@ -17,8 +16,8 @@ import {
   uploadVisionImage,
 } from "./vision-images";
 import { VisionComposer, type VisionDraft } from "./vision-composer";
+import { VisionTile } from "./vision-tile";
 import { VisionLightbox } from "./vision-lightbox";
-import { stripHtml } from "./image";
 
 const c = copy.visionBoard;
 
@@ -115,30 +114,56 @@ export function VisionBoard() {
     setEditing(null);
   };
 
+  /* ------------------------------------------------------- arranging by hand */
+
+  const tiles = useRef(new Map<string, HTMLElement>());
+  /** The card last moved past, so the same one is not counted twice. */
+  const lastOver = useRef<string | null>(null);
+
+  const register = (id: string, el: HTMLElement | null) => {
+    if (el) tiles.current.set(id, el);
+    else tiles.current.delete(id);
+  };
+
   /**
-   * Deal the year's visions again.
+   * Put the card being dragged where the pointer is.
    *
-   * A board you keep is a board you stop seeing — the first card becomes the
-   * only one you ever really look at. Shuffling is the cheapest way to make
-   * the eighth card land in front of you, so the order is written back rather
-   * than only re-rendered.
+   * Reordering as the card passes over another one, rather than only on drop,
+   * is what makes the rest of the board move aside and show where the card is
+   * going to land.
    *
-   * Fisher-Yates, and never a no-op: on two or more cards it keeps drawing
-   * until the order actually changes, because a shuffle that leaves the board
-   * exactly as it was reads as a broken button.
+   * Each card is only counted once in a row as it is passed. Two cards would
+   * otherwise trade places over and over while the pointer sat on the boundary
+   * between them — and holding the reorder off for a fixed time instead would
+   * cap how far one drag could carry a card, so a long drag across the board
+   * would stop somewhere in the middle of it.
    */
-  const shuffle = () => {
-    if (!active || active.items.length < 2) return;
-    const before = active.items.map((i) => i.id).join();
-    let next = active.items;
-    do {
-      next = [...next];
-      for (let i = next.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [next[i], next[j]] = [next[j], next[i]];
+  const place = (dragged: string, x: number, y: number) => {
+    if (!active) return;
+
+    // The card in hand is skipped. It is drawn under the pointer for as long
+    // as it is being dragged, so it would match every single time and nothing
+    // underneath it would ever be found — which looked like a drag that moved
+    // a card one place and then gave up.
+    let over: string | null = null;
+    for (const [id, el] of tiles.current) {
+      if (id === dragged) continue;
+      const r = el.getBoundingClientRect();
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) {
+        over = id;
+        break;
       }
-    } while (next.map((i) => i.id).join() === before);
-    patchYear(active.id, { items: next });
+    }
+    if (!over || over === lastOver.current) return;
+    lastOver.current = over;
+
+    const items = [...active.items];
+    const from = items.findIndex((i) => i.id === dragged);
+    const to = items.findIndex((i) => i.id === over);
+    if (from < 0 || to < 0) return;
+
+    items.splice(to, 0, items.splice(from, 1)[0]);
+    patchYear(active.id, { items });
   };
 
   const removeItem = (itemId: string) => {
@@ -257,15 +282,6 @@ export function VisionBoard() {
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {visions > 1 && (
-                <button
-                  onClick={shuffle}
-                  aria-label="Shuffle the board"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border px-3.5 py-2 text-[13px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <Shuffle className="h-3.5 w-3.5" /> Shuffle
-                </button>
-              )}
               {!composerOpen && (
                 <button
                   onClick={() => {
@@ -331,42 +347,15 @@ export function VisionBoard() {
             <motion.div layout className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               <AnimatePresence initial={false}>
                 {active.items.map((item) => (
-                  <motion.button
+                  <VisionTile
                     key={item.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    whileHover={{ y: -3 }}
-                    onClick={() => setLightboxAt(active.items.indexOf(item))}
-                    className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-card text-left"
-                  >
-                    {item.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={item.imageUrl}
-                        alt={item.title}
-                        className="aspect-square w-full shrink-0 bg-secondary object-cover"
-                      />
-                    ) : (
-                      <div
-                        className="aspect-square w-full shrink-0"
-                        style={{ backgroundImage: gradient(item.gradient ?? ACCENTS[0]) }}
-                      />
-                    )}
-                    {/* The caption grows to fill, so tiles in a row end level
-                        without a fixed height that would clip a wrapped title. */}
-                    <div className="flex-1 p-3">
-                      <h3 className="line-clamp-2 text-[13px] font-semibold leading-snug text-heading">
-                        {item.title}
-                      </h3>
-                      {item.description && (
-                        <p className="mt-0.5 line-clamp-1 text-[11.5px] leading-relaxed text-muted-foreground">
-                          {stripHtml(item.description)}
-                        </p>
-                      )}
-                    </div>
-                  </motion.button>
+                    item={item}
+                    onOpen={() => setLightboxAt(active.items.indexOf(item))}
+                    onGrab={() => (lastOver.current = null)}
+                    onMove={place}
+                    onDrop={() => (lastOver.current = null)}
+                    register={register}
+                  />
                 ))}
               </AnimatePresence>
             </motion.div>

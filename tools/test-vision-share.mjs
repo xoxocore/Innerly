@@ -196,7 +196,11 @@ const VISION = {
 const BOARD = [{ id: "y", year: "2030", items: [VISION] }];
 
 async function asOwner() {
-  const p = await (await browser.newContext({ viewport: { width: 1280, height: 950 } })).newPage();
+  const p = await (await browser.newContext({
+    viewport: { width: 1280, height: 950 },
+    // So the suite can read back what the Copy button actually put there.
+    permissions: ["clipboard-read", "clipboard-write"],
+  })).newPage();
   const errs = [];
   p.on("pageerror", (e) => errs.push(String(e)));
   await p.addInitScript((b) => {
@@ -248,6 +252,46 @@ const shown = await linkBox.inputValue();
 check("...and shown to copy", shown.endsWith(`/v/${token}`), shown);
 check("...with a token nobody could guess", token.length >= 20, `${token.length} chars`);
 check("...that is not the vision's own id", !shown.includes(VISION.id), shown);
+
+/* --------------------------------------------------------------- copying it */
+
+{
+  const copyBtn = owner.p.getByRole("button", { name: "Copy the link" });
+  check("the link has its own copy button", (await copyBtn.count()) > 0);
+
+  await owner.p.evaluate(() => navigator.clipboard.writeText(""));
+  await copyBtn.click();
+  await owner.p.waitForTimeout(600);
+
+  const onClipboard = await owner.p.evaluate(() => navigator.clipboard.readText());
+  check("pressing it really puts the link on the clipboard", onClipboard === shown,
+    JSON.stringify(onClipboard));
+
+  // When the browser refuses the modern clipboard — an old phone, a page in a
+  // frame — the person has to be told rather than left with an empty paste.
+  await owner.p.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: () => Promise.reject(new Error("blocked")) },
+    });
+    document.execCommand = () => false;
+  });
+  await copyBtn.click();
+  await owner.p.waitForTimeout(500);
+  const said = await owner.p.locator("body").innerText();
+  check("a refused copy says so instead of failing quietly",
+    /press Ctrl\/Cmd \+ C/i.test(said),
+    said.split("\n").find((l) => /copy/i.test(l)) ?? "");
+  const selected = await owner.p.evaluate(() => {
+    const el = document.querySelector('input[aria-label="Link to this vision"]');
+    return el.selectionEnd - el.selectionStart;
+  });
+  check("...and selects the link so it can be copied by hand", selected > 20,
+    `${selected} characters selected`);
+
+  await owner.p.reload({ waitUntil: "networkidle" });
+  await owner.p.waitForTimeout(1200);
+}
 
 /* --------------------------------------------- a stranger opens what they were sent */
 
