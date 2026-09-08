@@ -62,6 +62,12 @@ export type SubGoal = {
   done: boolean;
   /** Optional. A sub-goal without them behaves as it always did. */
   steps?: Step[];
+  /**
+   * Being worked on today: its open steps appear on the Today list, tagged
+   * with this sub-goal's name, while the sub-goal itself stays where it was
+   * written. Only ever set on a sub-goal that has steps.
+   */
+  active?: boolean;
   /** When it was ticked — what the completed log is ordered and dated by. */
   completedAt?: string;
   /** Carried into a new day without having been finished. */
@@ -101,7 +107,7 @@ export const HORIZONS: { key: Horizon; label: string; addLabel: string }[] = [
   { key: "sixMonths", label: "6 Months", addLabel: "Add sub-goal" },
   { key: "threeMonths", label: "3 Months", addLabel: "Add sub-goal" },
   { key: "oneMonth", label: "This Month", addLabel: "Add sub-goal" },
-  { key: "thisWeek", label: "This Week", addLabel: "Add sub-goal" },
+  { key: "thisWeek", label: "Weekly Goal", addLabel: "Add sub-goal" },
   { key: "today", label: "Today", addLabel: "Add action" },
 ];
 
@@ -236,6 +242,7 @@ function normSub(s: unknown): SubGoal | null {
     id: typeof o.id === "string" ? o.id : rid(),
     title: typeof o.title === "string" ? o.title : "",
     done: !!o.done,
+    active: o.active === true ? true : undefined,
     steps: Array.isArray(o.steps)
       ? (o.steps.map(normStep).filter(Boolean) as Step[])
       : undefined,

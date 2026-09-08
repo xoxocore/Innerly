@@ -27,6 +27,7 @@ import {
   type SubGoal,
 } from "@/lib/types";
 import {
+  activeSubs,
   completeStep,
   completeSub,
   editSteps,
@@ -34,7 +35,6 @@ import {
   stepProgress,
   winsToday,
 } from "@/lib/cascade";
-import { useApp } from "@/state/app-context";
 import { uid } from "@/state/use-data";
 
 export function GoalThread({
@@ -48,9 +48,7 @@ export function GoalThread({
   onUpdate: (g: Goal) => void;
   onDelete: () => void;
 }) {
-  const { night } = useApp();
   const color = goalColor(goal.color);
-  const soft = night ? color.softDark : color.soft;
 
   const setHorizon = (h: Horizon, subs: SubGoal[]) =>
     onUpdate({ ...goal, horizons: { ...goal.horizons, [h]: subs } });
@@ -187,7 +185,6 @@ export function GoalThread({
                       <SubGoalRow
                         key={sub.id}
                         sub={sub}
-                        soft={soft}
                         dot={color.dot}
                         onToggle={() => onComplete(key, sub.id)}
                         onChange={(title) => updateSub(key, sub.id, { title })}
@@ -212,6 +209,41 @@ export function GoalThread({
                 >
                   <Plus className="h-3.5 w-3.5" /> {addLabel}
                 </button>
+
+                {/* The steps of whatever weekly or monthly goal is being
+                    worked on. They are shown here and ticked here, but they
+                    belong to the goal named beside them and are still counted
+                    there — which is why that goal has not moved. */}
+                {key === "today" &&
+                  activeSubs(goal).map(({ sub: parent, horizon }) => (
+                    <div key={parent.id} className="mt-1.5">
+                      {(parent.steps ?? [])
+                        .filter((step) => !step.done)
+                        .map((step) => (
+                          <div
+                            key={step.id}
+                            className="group flex items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-accent/40"
+                          >
+                            <button
+                              onClick={() => onStep(horizon, parent.id, step.id)}
+                              aria-label={`Mark "${step.title}" complete`}
+                              className="grid h-[17px] w-[17px] shrink-0 place-items-center rounded-full border-[1.5px] transition-colors"
+                              style={{ borderColor: color.dot }}
+                            />
+                            <span className="min-w-0 flex-1 truncate text-[13px] leading-snug">
+                              {step.title}
+                            </span>
+                            <span
+                              className="shrink-0 rounded-full px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-[0.08em]"
+                              style={{ backgroundColor: color.soft, color: color.ink }}
+                              title={`Part of "${parent.title}" in ${shortLabel(horizon)}`}
+                            >
+                              {parent.title}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  ))}
 
                 {key === "today" && (
                   <CompletedWins
@@ -403,7 +435,6 @@ function ColorPicker({
 
 function SubGoalRow({
   sub,
-  soft,
   dot,
   onToggle,
   onChange,
@@ -415,7 +446,6 @@ function SubGoalRow({
   onDropStep,
 }: {
   sub: SubGoal;
-  soft: string;
   dot: string;
   onToggle: () => void;
   onChange: (title: string) => void;
@@ -428,7 +458,6 @@ function SubGoalRow({
   onDropStep: (stepId: string) => void;
 }) {
   const controls = useDragControls();
-  const [hover, setHover] = useState(false);
   const progress = stepProgress(sub);
 
   return (
@@ -440,17 +469,13 @@ function SubGoalRow({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, height: 0, marginTop: 0 }}
       transition={{ type: "spring", stiffness: 500, damping: 40 }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="group rounded-lg px-1.5 py-1"
-      style={{ backgroundColor: hover ? soft : "transparent" }}
+      className="group rounded-lg px-1.5 py-1 transition-colors hover:bg-accent/40"
     >
       <div className="flex items-center gap-1.5">
       <button
         onPointerDown={(e) => controls.start(e)}
         aria-label="Drag to reorder"
-        className="cursor-grab touch-none text-muted-foreground/50 transition-opacity hover:text-muted-foreground active:cursor-grabbing"
-        style={{ opacity: hover ? 1 : 0.25 }}
+        className="cursor-grab touch-none text-muted-foreground/40 transition-colors hover:text-muted-foreground active:cursor-grabbing"
       >
         <GripVertical className="h-3.5 w-3.5" />
       </button>
@@ -493,8 +518,7 @@ function SubGoalRow({
           onClick={onMoveToToday}
           aria-label={`Move "${sub.title || "this"}" to Today`}
           title="Move to Today"
-          className="shrink-0 text-muted-foreground transition-opacity hover:text-foreground"
-          style={{ opacity: hover ? 1 : 0 }}
+          className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
         >
           <ArrowDownToLine className="h-3.5 w-3.5" />
         </button>
@@ -503,8 +527,7 @@ function SubGoalRow({
       <button
         onClick={onRemove}
         aria-label="Remove"
-        className="text-muted-foreground transition-opacity hover:text-foreground"
-        style={{ opacity: hover ? 1 : 0 }}
+        className="text-muted-foreground/50 transition-colors hover:text-foreground"
       >
         <Trash className="h-3.5 w-3.5" />
       </button>
@@ -514,7 +537,7 @@ function SubGoalRow({
           That line is the whole of the link: it says these belong to the thing
           above them, and it travels with the sub-goal when the cascade carries
           it down to another horizon. */}
-      {(progress || hover) && (
+      {(
         <div
           className="ml-[13px] border-l pl-3"
           style={{ borderColor: dot, opacity: 0.5 }}
@@ -547,7 +570,7 @@ function SubGoalRow({
                 <button
                   onClick={() => onDropStep(step.id)}
                   aria-label="Remove step"
-                  className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover/step:opacity-100"
+                  className="shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground"
                 >
                   <Trash className="h-3 w-3" />
                 </button>
@@ -557,7 +580,6 @@ function SubGoalRow({
             <button
               onClick={onAddStep}
               className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              style={{ opacity: progress ? 1 : hover ? 1 : 0 }}
             >
               <Plus className="h-3 w-3" /> Add step
             </button>
