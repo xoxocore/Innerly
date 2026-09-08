@@ -25,18 +25,24 @@ import { useApp, type View } from "@/state/app-context";
 
 type NavItem = { view: View; label: string; icon: typeof Home };
 
+// The places you go to do something, ending with the record of having done it.
 const MAIN: NavItem[] = [
   { view: "dashboard", label: copy.nav.dashboard, icon: Home },
   { view: "reflect", label: copy.nav.reflect, icon: NotebookPen },
   { view: "daily-plan", label: copy.nav.dailyPlan, icon: Calendar },
   { view: "manifestation", label: copy.nav.manifestation, icon: Sparkles },
   { view: "vision-board", label: copy.nav.visionBoard, icon: ImageIcon },
+  { view: "history", label: copy.nav.history, icon: Clock },
 ];
 
+/** Things to read rather than things to do. */
 const LIBRARY: NavItem[] = [
   { view: "blog", label: copy.nav.blog, icon: BookOpen },
   { view: "tutorials", label: copy.nav.tutorials, icon: GraduationCap },
-  { view: "history", label: copy.nav.history, icon: Clock },
+];
+
+/** Everything about the account itself, which is nobody's daily business. */
+const ACCOUNT: NavItem[] = [
   { view: "settings", label: copy.nav.settings, icon: Settings },
 ];
 
@@ -139,6 +145,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           {LIBRARY.map((item) => (
             <NavLink key={item.view} item={item} layoutId="nav-active-v" />
           ))}
+          <SectionLabel>{copy.brand.accountLabel}</SectionLabel>
+          {ACCOUNT.map((item) => (
+            <NavLink key={item.view} item={item} layoutId="nav-active-v" />
+          ))}
         </nav>
         <StreakNightRow />
       </aside>
@@ -150,7 +160,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <StreakNightRow />
         </div>
         <nav className="mt-3 flex gap-1 overflow-x-auto pb-1">
-          {[...MAIN, ...LIBRARY].map((item) => (
+          {[...MAIN, ...LIBRARY, ...ACCOUNT].map((item) => (
             <NavLink key={item.view} item={item} layoutId="nav-active-h" />
           ))}
         </nav>

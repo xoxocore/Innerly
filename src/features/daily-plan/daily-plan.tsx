@@ -28,7 +28,7 @@ import {
   type Horizon,
 } from "@/lib/types";
 import { useApp } from "@/state/app-context";
-import { useDayTasks, useGoals, uid } from "@/state/use-data";
+import { useDayTasks, useDayTurn, useGoals, uid } from "@/state/use-data";
 import { useTaskDays } from "@/state/use-task-days";
 import { GoalThread } from "./goal-thread";
 import { MonthCalendar, keyOf, type DayChip } from "./month-calendar";
@@ -263,6 +263,9 @@ function GoalCard({ goal, onOpen }: { goal: Goal; onOpen: () => void }) {
 
 export function DailyPlan() {
   const [goals, setGoals] = useGoals();
+  // Yesterday's unfinished work follows you here, and yesterday's finished work
+  // steps aside, before any of it is drawn.
+  useDayTurn();
   const taskDays = useTaskDays();
 
   const todayKey = keyOf(new Date());

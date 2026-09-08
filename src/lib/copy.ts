@@ -5,6 +5,7 @@ export const copy = {
     appName: "Innerly",
     tagline: "Self-awareness · Action",
     libraryLabel: "Library",
+    accountLabel: "Account",
     streakSingular: "Day on Innerly",
     streakPlural: "Days on Innerly",
   },

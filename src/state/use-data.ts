@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { KEYS, usePersistentState } from "@/lib/storage";
+import { completeSub, turnAll } from "@/lib/cascade";
 import {
   isDataUrl,
   signVisionImages,
@@ -45,6 +46,30 @@ export function useGoals() {
   );
 
   return [goals, setGoals, hydrated] as const;
+}
+
+/**
+ * Bring every goal up to today, on the way in.
+ *
+ * The specification called for a nightly job at midnight. There is nowhere for
+ * one to run: a goal lives in this browser, and a server has neither the data
+ * nor any idea when midnight is where the person happens to be. So the turn
+ * happens on arrival instead — which is not a compromise but the sturdier of
+ * the two. A job that fires at midnight misses anyone whose laptop was shut,
+ * and a week away would leave a week of days half-turned. Catching up on the
+ * way in cannot miss, because it only ever runs when somebody is actually here
+ * to see the result.
+ */
+export function useDayTurn() {
+  const [goals, setGoals] = useGoals();
+  const day = todayId();
+  const turned = useMemo(() => turnAll(goals, day), [goals, day]);
+
+  useEffect(() => {
+    if (turned !== goals) setGoals(turned);
+  }, [turned, goals, setGoals]);
+
+  return turned;
 }
 
 export function todayId(d = new Date()) {
@@ -262,20 +287,10 @@ export function useTodayPlan() {
 
   const toggle = (item: TodayItem) => {
     if (item.source === "goal") {
+      // Through the cascade, so finishing the day's last action from the home
+      // page pulls the next one down exactly as it would from the goal itself.
       setGoals((prev) =>
-        prev.map((g) =>
-          g.id === item.goalId
-            ? {
-                ...g,
-                horizons: {
-                  ...g.horizons,
-                  today: g.horizons.today.map((s) =>
-                    s.id === item.id ? { ...s, done: !s.done } : s
-                  ),
-                },
-              }
-            : g
-        )
+        prev.map((g) => (g.id === item.goalId ? completeSub(g, "today", item.id) : g))
       );
     } else {
       setTasks((prev) =>
