@@ -38,10 +38,30 @@ export type Horizon =
   | "thisWeek"
   | "today";
 
-export type SubGoal = {
+/**
+ * One piece of a sub-goal.
+ *
+ * "Change the wording in the interface" is a thing you can tick, but it is
+ * really the home page and then the daily plan page — and a list that cannot
+ * say so makes you hold the parts in your head. Steps are always optional: a
+ * sub-goal that is genuinely one action stays one line.
+ */
+export type Step = {
   id: string;
   title: string;
   done: boolean;
+};
+
+export type SubGoal = {
+  id: string;
+  title: string;
+  /**
+   * Derived when there are steps: a sub-goal is finished exactly when all of
+   * its steps are. Never set by hand in that case — see lib/cascade.
+   */
+  done: boolean;
+  /** Optional. A sub-goal without them behaves as it always did. */
+  steps?: Step[];
   /** When it was ticked — what the completed log is ordered and dated by. */
   completedAt?: string;
   /** Carried into a new day without having been finished. */
@@ -216,9 +236,22 @@ function normSub(s: unknown): SubGoal | null {
     id: typeof o.id === "string" ? o.id : rid(),
     title: typeof o.title === "string" ? o.title : "",
     done: !!o.done,
+    steps: Array.isArray(o.steps)
+      ? (o.steps.map(normStep).filter(Boolean) as Step[])
+      : undefined,
     completedAt: typeof o.completedAt === "string" ? o.completedAt : undefined,
     rolledOver: o.rolledOver === true ? true : undefined,
     promotedFrom: isHorizon(o.promotedFrom) ? o.promotedFrom : undefined,
+  };
+}
+
+function normStep(s: unknown): Step | null {
+  if (!s || typeof s !== "object") return null;
+  const o = s as Record<string, unknown>;
+  return {
+    id: typeof o.id === "string" ? o.id : rid(),
+    title: typeof o.title === "string" ? o.title : "",
+    done: !!o.done,
   };
 }
 

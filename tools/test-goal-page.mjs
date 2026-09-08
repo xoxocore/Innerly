@@ -351,6 +351,59 @@ async function openGoal(p) {
   await p.close();
 }
 
+/* ---------------------------------------------------- steps under a sub-goal */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  const row = p.locator("li").filter({ has: p.locator('input[value="Fix the wording in the UI"]') });
+  await row.hover();
+  await p.waitForTimeout(300);
+
+  const add = row.getByRole("button", { name: /Add step/ });
+  check("a sub-goal offers to be broken into steps", (await add.count()) > 0);
+
+  await add.click();
+  await p.waitForTimeout(400);
+  await row.locator('input[placeholder="A smaller piece of it…"]').first()
+    .fill("Change the home page wording");
+  await add.click();
+  await p.waitForTimeout(400);
+  await row.locator('input[placeholder="A smaller piece of it…"]').last()
+    .fill("Change the daily plan wording");
+  await p.waitForTimeout(500);
+
+  check("the heading counts its steps", /0\/2/.test(await row.innerText()),
+    (await row.innerText()).replace(/\n/g, " ").slice(0, 70));
+
+  const ticks = row.getByRole("button", { name: "Mark step complete" });
+  await ticks.first().click();
+  await p.waitForTimeout(500);
+  check("one of two leaves the heading open",
+    /1\/2/.test(await row.innerText()) &&
+      (await p.evaluate(() =>
+        JSON.parse(localStorage.getItem("innerly:goals"))[0]
+          .horizons.thisWeek.find((s) => s.id === "w1").done)) === false,
+    (await row.innerText()).replace(/\n/g, " ").slice(0, 70));
+
+  await row.getByRole("button", { name: "Mark step complete" }).first().click();
+  await p.waitForTimeout(700);
+
+  const stored = await p.evaluate(
+    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
+  );
+  const parent =
+    stored.thisWeek.find((s) => s.id === "w1") ?? stored.today.find((s) => s.id === "w1");
+  check("finishing every step ticks the heading itself", parent.done === true,
+    JSON.stringify(parent && { done: parent.done, steps: parent.steps?.length }));
+  check("...and the steps travel with it wherever it goes",
+    (parent.steps ?? []).length === 2,
+    JSON.stringify((parent.steps ?? []).map((t) => t.title)));
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
 await b.close();
 console.log(bad ? `\n${bad} failing` : "\nall good");
 process.exit(bad ? 1 : 0);
