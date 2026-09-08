@@ -13,6 +13,7 @@
 // Node strips the types itself, so the real module is the one under test —
 // no transpiled copy that might differ from what the app actually runs.
 const { cascade, completeSub, completeStep, editSteps, stepProgress,
+  todaysWork,
   turnDay, turnAll, moveSub, winsToday, openToday } =
   await import("../src/lib/cascade.ts");
 
@@ -290,6 +291,108 @@ const step = (id, title, done = false) => ({ id, title, done });
   check("taking every step away hands the tick back",
     emptied.horizons.thisWeek[0].done === false &&
       stepProgress(emptied.horizons.thisWeek[0]) === null);
+}
+
+/* ------------------------------- a weekly goal lends its steps and stays put */
+
+{
+  const g = goal({
+    thisWeek: [{ ...sub("w1", "Fix all the bugs"), steps: [
+      step("p1", "Emoji access"), step("p2", "Green date"),
+    ] }],
+    today: [sub("t1", "Yesterday's leftover", true)],
+  });
+  const after = cascade(g);
+
+  check("the weekly goal stays in the week",
+    titles(after.horizons.thisWeek).join() === "Fix all the bugs",
+    titles(after.horizons.thisWeek).join(" / "));
+  check("...and is not copied into today",
+    !titles(after.horizons.today).includes("Fix all the bugs"),
+    titles(after.horizons.today).join(" / "));
+  check("...but is marked as the thing being worked on",
+    after.horizons.thisWeek[0].active === true);
+
+  const work = todaysWork(after).filter((w) => w.parent);
+  check("its steps are what today actually asks for",
+    work.map((w) => w.sub.title).join() === "Emoji access,Green date",
+    work.map((w) => w.sub.title).join(" / "));
+  check("...each naming the goal it belongs to",
+    work.every((w) => w.parent.title === "Fix all the bugs"));
+
+  // Nothing else should drop while its steps are still outstanding.
+  const held = goal({
+    oneMonth: [sub("m1", "Something later")],
+    thisWeek: [{ ...sub("w1", "Fix all the bugs"), steps: [step("p1", "One")], active: true }],
+  });
+  check("today is not refilled while borrowed steps are open",
+    cascade(held) === held);
+}
+
+{
+  const g = goal({
+    thisWeek: [{ ...sub("w1", "Fix all the bugs"), steps: [
+      step("p1", "Emoji access"), step("p2", "Green date"),
+    ], active: true }],
+  });
+
+  const one = completeStep(g, "thisWeek", "w1", "p1");
+  check("ticking one borrowed step leaves the weekly goal open",
+    one.horizons.thisWeek[0].done === false &&
+      one.horizons.thisWeek[0].active === true);
+  check("...and it still shows in the week",
+    titles(one.horizons.thisWeek).join() === "Fix all the bugs");
+
+  const both = completeStep(one, "thisWeek", "w1", "p2");
+  check("ticking the last one strikes the weekly goal through",
+    both.horizons.thisWeek[0].done === true);
+  check("...and it stops asking anything of today",
+    both.horizons.thisWeek[0].active === undefined &&
+      todaysWork(both).length === 0,
+    JSON.stringify(todaysWork(both).map((w) => w.sub.title)));
+  check("...while staying visible in the week it was written in",
+    titles(both.horizons.thisWeek).join() === "Fix all the bugs");
+}
+
+{
+  // A single action with no steps still moves, exactly as it used to.
+  const g = goal({
+    thisWeek: [sub("w1", "One clear action")],
+    today: [sub("t1", "Done", true)],
+  });
+  const after = cascade(g);
+  check("a sub-goal with no steps still comes down to today",
+    titles(after.horizons.today).includes("One clear action"),
+    titles(after.horizons.today).join(" / "));
+  check("...and leaves the week", after.horizons.thisWeek.length === 0);
+}
+
+{
+  // Finishing the week's goal should hand the turn to the next one, rather
+  // than leaving an empty day and a queue that never starts.
+  const g = goal({
+    thisWeek: [
+      { ...sub("w1", "Fix all the bugs"), steps: [step("p1", "One")], active: true },
+      { ...sub("w2", "Write the copy"), steps: [step("p2", "Home page")] },
+    ],
+  });
+  const after = completeStep(g, "thisWeek", "w1", "p1");
+  check("the next weekly goal takes its turn once the first is done",
+    after.horizons.thisWeek[1].active === true,
+    JSON.stringify(after.horizons.thisWeek.map((x) => [x.title, x.done, x.active])));
+  check("...and the finished one is struck through, not removed",
+    after.horizons.thisWeek[0].done === true &&
+      titles(after.horizons.thisWeek).length === 2);
+
+  // Reopening it makes it an open weekly goal again, but does not take the
+  // turn back from the one that has already started.
+  const undone = completeStep(after, "thisWeek", "w1", "p1");
+  check("reopening it makes it open again",
+    undone.horizons.thisWeek[0].done === false);
+  check("...without snatching the turn back from the one now under way",
+    undone.horizons.thisWeek[1].active === true &&
+      undone.horizons.thisWeek[0].active !== true,
+    JSON.stringify(undone.horizons.thisWeek.map((x) => [x.title, x.active])));
 }
 
 console.log(bad ? `\n${bad} failing` : "\nall good");

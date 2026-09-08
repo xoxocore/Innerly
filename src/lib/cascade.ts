@@ -15,6 +15,59 @@ const NEAREST_FIRST = [...HORIZONS].reverse().map((h) => h.key);
 
 const open = (list: SubGoal[]) => list.filter((s) => !s.done);
 
+const hasSteps = (s: SubGoal) => (s.steps?.length ?? 0) > 0;
+
+/**
+ * The sub-goals whose steps are on today's list.
+ *
+ * A weekly goal broken into steps does not leave the week when its turn comes.
+ * It stays written where it was written — that is the plan, and watching the
+ * plan empty itself is not the same as making progress — and only its steps
+ * come down to be done. It is finished when they are, at which point it is
+ * struck through in the week where it has been sitting all along.
+ */
+export function activeSubs(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
+  const out: { sub: SubGoal; horizon: Horizon }[] = [];
+  for (const { key } of HORIZONS) {
+    if (key === "today") continue;
+    for (const s of goal.horizons[key]) {
+      if (s.active && !s.done && hasSteps(s)) out.push({ sub: s, horizon: key });
+    }
+  }
+  return out;
+}
+
+/** Everything today asks of you: its own actions, plus any active steps. */
+export function todaysWork(goal: Goal): {
+  sub: SubGoal;
+  horizon: Horizon;
+  step?: Step;
+  parent?: SubGoal;
+}[] {
+  const own = goal.horizons.today
+    .filter((s) => !s.done)
+    .map((s) => ({ sub: s, horizon: "today" as Horizon }));
+
+  const borrowed = activeSubs(goal).flatMap(({ sub, horizon }) =>
+    (sub.steps ?? [])
+      .filter((t) => !t.done)
+      .map((step) => ({
+        sub: { id: step.id, title: step.title, done: step.done },
+        horizon,
+        step,
+        parent: sub,
+      }))
+  );
+
+  return [...own, ...borrowed];
+}
+
+/** Whether today still has anything on it, counting borrowed steps. */
+function todayIsClear(goal: Goal, horizons: Record<Horizon, SubGoal[]>): boolean {
+  if (open(horizons.today).length > 0) return false;
+  return activeSubs({ ...goal, horizons }).length === 0;
+}
+
 /**
  * Let the next thing fall into the gap that finishing something just made.
  *
@@ -46,17 +99,29 @@ export function cascade(goal: Goal, refillEmpty: Horizon[] = []): Goal {
       const upper = NEAREST_FIRST[i + 1];
 
       const held = horizons[lower];
+      const clear =
+        lower === "today"
+          ? todayIsClear(goal, horizons)
+          : open(held).length === 0;
       const wants =
-        held.length > 0
-          ? open(held).length === 0
+        held.length > 0 || (lower === "today" && activeSubs({ ...goal, horizons }).length > 0)
+          ? clear
           : refillEmpty.includes(lower);
       if (!wants) continue;
 
       const next = open(horizons[upper])[0];
       if (!next) continue;
 
-      horizons[upper] = horizons[upper].filter((s) => s.id !== next.id);
-      horizons[lower] = [...horizons[lower], { ...next, promotedFrom: upper }];
+      // A sub-goal broken into steps sends its steps down and stays where it
+      // was written; one that is a single action moves, as it always has.
+      if (lower === "today" && hasSteps(next)) {
+        horizons[upper] = horizons[upper].map((s) =>
+          s.id === next.id ? { ...s, active: true } : s
+        );
+      } else {
+        horizons[upper] = horizons[upper].filter((s) => s.id !== next.id);
+        horizons[lower] = [...horizons[lower], { ...next, promotedFrom: upper }];
+      }
       movedThisPass = true;
       moved = true;
     }
@@ -85,6 +150,9 @@ export function settle(sub: SubGoal): SubGoal {
     ...sub,
     done,
     completedAt: done ? new Date().toISOString() : undefined,
+    // Finished work is not work in progress. The line stays where it is,
+    // struck through, but it stops asking anything of today.
+    active: done ? undefined : sub.active,
   };
 }
 
@@ -104,7 +172,12 @@ export function completeSub(goal: Goal, horizon: Horizon, id: string): Goal {
     };
   });
   const next = { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
-  return cascade(next);
+  // Only a tick that cleared today's own work has earned the next thing. A
+  // tick somewhere further out has not, or a month's action would fall
+  // straight past the week it was supposed to be planned into.
+  const wasTodays =
+    horizon === "today" || goal.horizons[horizon].find((s) => s.id === id)?.active === true;
+  return cascade(next, wasTodays ? ["today"] : []);
 }
 
 /** Ticking one step, and letting its heading follow. */
@@ -124,7 +197,15 @@ export function completeStep(
         })
       : s
   );
-  return cascade({ ...goal, horizons: { ...goal.horizons, [horizon]: list } });
+  // A step is only ever today's work when its sub-goal is the one being
+  // worked on, which is the only case that may refill an empty day.
+  const wasTodays =
+    horizon === "today" ||
+    goal.horizons[horizon].find((s) => s.id === subId)?.active === true;
+  return cascade(
+    { ...goal, horizons: { ...goal.horizons, [horizon]: list } },
+    wasTodays ? ["today"] : []
+  );
 }
 
 /** Adding, renaming and removing the parts of a sub-goal. */

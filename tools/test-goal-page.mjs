@@ -146,7 +146,7 @@ async function openGoal(p) {
     );
     return label.closest("div").getBoundingClientRect().height;
   });
-  check("a card with one sub-goal stays compact", tall < 130, `${Math.round(tall)}px tall`);
+  check("a card with one sub-goal stays compact", tall < 150, `${Math.round(tall)}px tall`);
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -319,7 +319,7 @@ async function openGoal(p) {
 
   const after = await p.locator("main").innerText();
   check("...marked as having come from a longer horizon",
-    /From This Week/i.test(after),
+    /From Weekly Goal/i.test(after),
     after.split("\n").find((l) => /From /i.test(l)) ?? "");
 
   check("no page errors", errs.length === 0, errs[0]);
@@ -400,6 +400,71 @@ async function openGoal(p) {
     (parent.steps ?? []).length === 2,
     JSON.stringify((parent.steps ?? []).map((t) => t.title)));
 
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* --------------------------- a weekly goal lends its steps and stays in the week */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  // Break the week's action into steps, then finish today so it takes its turn.
+  const row = p.locator("li").filter({ has: p.locator('input[value="Fix the wording in the UI"]') });
+  const add = row.getByRole("button", { name: /Add step/ });
+  check("Add step is there without having to hover for it",
+    await add.isVisible(), "no hover needed");
+
+  await add.click();
+  await p.waitForTimeout(400);
+  await row.locator('input[placeholder="A smaller piece of it…"]').first()
+    .fill("Change the home page wording");
+  await p.waitForTimeout(400);
+
+  await tickFor(p, "Change the review card to white").click();
+  await p.waitForTimeout(900);
+
+  const stored = await p.evaluate(
+    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
+  );
+  check("the weekly goal stays in the week", stored.thisWeek.length === 1,
+    JSON.stringify(stored.thisWeek.map((s) => s.title)));
+  check("...marked as the one being worked on", stored.thisWeek[0].active === true);
+  check("...and is not moved into today",
+    !stored.today.some((s) => s.id === "w1"),
+    JSON.stringify(stored.today.map((s) => s.id)));
+
+  const body = await p.locator("main").innerText();
+  check("its step is on today's list",
+    body.includes("Change the home page wording"), body.slice(-260));
+  // The tag is uppercased by the stylesheet, so innerText shouts it back.
+  check("...tagged with the goal it belongs to",
+    /FIX THE WORDING IN THE UI/i.test(body),
+    body.slice(-160).replace(/\n/g, " "));
+
+  // Finishing the step should strike the weekly goal through.
+  await p.getByRole("button", { name: 'Mark "Change the home page wording" complete' }).click();
+  await p.waitForTimeout(900);
+  const after = await p.evaluate(
+    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
+  );
+  check("finishing its steps finishes the weekly goal",
+    after.thisWeek[0].done === true);
+  check("...which stays where it was written",
+    after.thisWeek.length === 1, JSON.stringify(after.thisWeek.map((s) => s.title)));
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------------------- the tier is now Weekly Goal */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+  const body = await p.locator("main").innerText();
+  check("the week is called what it is", /Weekly Goal/i.test(body));
+  check("...and no longer This Week", !/THIS WEEK/i.test(body),
+    body.split("\n").find((l) => /week/i.test(l)) ?? "");
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }
