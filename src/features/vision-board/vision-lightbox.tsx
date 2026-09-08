@@ -9,13 +9,11 @@ import {
   Share2,
   ChevronLeft,
   ChevronRight,
-  Check,
-  Download,
 } from "lucide-react";
 import { gradient } from "@/lib/content";
 import { cn } from "@/lib/utils";
 import { ACCENTS, type VisionItem } from "@/lib/types";
-import { shareVision, type ShareOutcome } from "./share-card";
+import { ShareSheet } from "./share-sheet";
 
 function RoundBtn({
   onClick,
@@ -57,8 +55,7 @@ export function VisionLightbox({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const [outcome, setOutcome] = useState<ShareOutcome | null>(null);
-  const [sharing, setSharing] = useState(false);
+  const [sharingItem, setSharingItem] = useState(false);
   const item = items[index];
 
   const go = (delta: number) => {
@@ -86,13 +83,6 @@ export function VisionLightbox({
     // Either a decisive flick or a long drag counts as a page turn.
     if (info.offset.x < -80 || info.velocity.x < -500) go(1);
     else if (info.offset.x > 80 || info.velocity.x > 500) go(-1);
-  };
-
-  const share = async () => {
-    setSharing(true);
-    setOutcome(await shareVision(item));
-    setSharing(false);
-    setTimeout(() => setOutcome(null), 2600);
   };
 
   if (!item) return null;
@@ -137,14 +127,8 @@ export function VisionLightbox({
         className="relative w-full max-w-[380px] cursor-grab overflow-hidden rounded-3xl border border-border bg-card active:cursor-grabbing"
       >
         <div className="absolute right-2.5 top-2.5 z-10 flex items-center gap-1.5">
-          <RoundBtn onClick={share} label="Share">
-            {outcome === "shared" ? (
-              <Check className="h-3.5 w-3.5 text-[var(--brand-green)]" />
-            ) : outcome === "downloaded" ? (
-              <Download className="h-3.5 w-3.5 text-[var(--brand-green)]" />
-            ) : (
-              <Share2 className={cn("h-3.5 w-3.5", sharing && "animate-pulse")} />
-            )}
+          <RoundBtn onClick={() => setSharingItem(true)} label="Share">
+            <Share2 className="h-3.5 w-3.5" />
           </RoundBtn>
           <RoundBtn onClick={onEdit} label="Edit">
             <Pencil className="h-3.5 w-3.5" />
@@ -156,6 +140,12 @@ export function VisionLightbox({
             <X className="h-3.5 w-3.5" />
           </RoundBtn>
         </div>
+
+        <AnimatePresence>
+          {sharingItem && (
+            <ShareSheet item={item} onClose={() => setSharingItem(false)} />
+          )}
+        </AnimatePresence>
 
         {/* The card keeps one shape whatever is inside it, so paging through
             the deck never makes the panel jump. */}
@@ -214,11 +204,6 @@ export function VisionLightbox({
         )}
       </motion.div>
 
-      {outcome === "downloaded" && (
-        <p className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-background/90 px-3.5 py-1.5 text-[12px] text-foreground backdrop-blur">
-          Saved as an image — send it however you like.
-        </p>
-      )}
     </div>
   );
 }
