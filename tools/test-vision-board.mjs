@@ -108,41 +108,61 @@ const saved = (p) =>
     JSON.parse(localStorage.getItem("innerly:visionboard"))[0].items.map((i) => i.title)
   );
 
-/* ------------------------------------------------------------------ shuffle */
+/* ------------------------------------------------------- putting a card somewhere */
 {
   const { p, errs } = await open();
 
   const before = await order(p);
   check("every vision is on the board", before.length === TITLES.length,
     `${before.length} of ${TITLES.length}`);
+  check("there is no shuffle button any more",
+    (await p.getByRole("button", { name: /Shuffle/i }).count()) === 0);
 
-  const button = p.getByRole("button", { name: "Shuffle the board" });
-  check("shuffle is offered", (await button.count()) > 0);
+  // Pick the last card up and drop it on the first one.
+  const card = (title) => p.locator("button").filter({ hasText: title }).last();
+  const first = await card(TITLES[0]).boundingBox();
+  const last = await card(TITLES[5]).boundingBox();
 
-  await button.click();
-  await p.waitForTimeout(600);
+  await p.mouse.move(last.x + last.width / 2, last.y + last.height / 2);
+  await p.mouse.down();
+  // Several small steps: one jump would be a teleport, and a drag is a
+  // sequence of moves the way a hand makes it.
+  for (let i = 1; i <= 12; i++) {
+    await p.mouse.move(
+      last.x + last.width / 2 + ((first.x - last.x) * i) / 12,
+      last.y + last.height / 2 + ((first.y - last.y) * i) / 12
+    );
+    await p.waitForTimeout(40);
+  }
+  await p.mouse.up();
+  await p.waitForTimeout(700);
+
   const after = await order(p);
-
-  check("...and the order really changes", after.join() !== before.join(),
+  check("a card can be dragged to another place", after.join() !== before.join(),
     `${before.slice(0, 3).join(" / ")} → ${after.slice(0, 3).join(" / ")}`);
-  check("...without losing or duplicating a card",
+  check("...landing where it was dropped", after[0] === TITLES[5],
+    `first is now ${after[0]}`);
+  check("...without losing or duplicating anything",
     after.length === before.length &&
       [...after].sort().join() === [...before].sort().join());
 
   const onDisk = await saved(p);
-  check("...and the new order is written down", onDisk.join() === after.join(),
+  check("...and the new arrangement is written down", onDisk.join() === after.join(),
     onDisk.slice(0, 3).join(" / "));
 
-  // Ten shuffles in a row must never leave the board untouched.
-  let noops = 0;
-  for (let i = 0; i < 10; i++) {
-    const was = await saved(p);
-    await button.click();
-    await p.waitForTimeout(250);
-    if ((await saved(p)).join() === was.join()) noops++;
-  }
-  check("...every time it is pressed", noops === 0, `${noops} did nothing`);
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
 
+/* --------------------------------------------------- a plain click still opens */
+{
+  const { p, errs } = await open();
+  await p.locator("button").filter({ hasText: TITLES[0] }).last().click();
+  await p.waitForTimeout(700);
+  check("clicking a card still opens it, rather than being read as a drag",
+    (await p.getByRole("button", { name: "Share" }).count()) > 0);
+  check("...and the board is not rearranged by a click",
+    (await saved(p)).join() === TITLES.join());
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }

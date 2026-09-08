@@ -66,3 +66,22 @@ export async function fetchShares(): Promise<Map<string, Share>> {
   }
   return out;
 }
+
+/**
+ * Copying the old way, for browsers that refuse the new one.
+ *
+ * `document.execCommand` is deprecated and still the only thing that works in
+ * a few places the modern clipboard does not — inside a frame, or on an older
+ * phone browser. It needs a real selection in a real field, which is why it
+ * takes the input rather than a string.
+ */
+export function copyBySelection(field: HTMLInputElement): boolean {
+  try {
+    field.focus();
+    field.select();
+    field.setSelectionRange(0, field.value.length);
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  }
+}
