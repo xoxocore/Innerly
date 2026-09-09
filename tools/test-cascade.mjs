@@ -17,9 +17,10 @@
 // no transpiled copy that might differ from what the app actually runs.
 const {
   DAILY_CAP, VAGUE_HINT,
-  activeSubs, atCapacity, completeStep, completeSub, dayLoad, editSteps,
-  isVague, moveSub, openToday, picksOf, primaryOf, putBack, setPrimary, settle,
-  stepProgress, takeIntoToday, todaysWork, turnAll, turnDay, winsToday,
+  atCapacity, borrowedAt, completeStep, completeSub, dayLoad, editSteps, isOn,
+  isVague, lentSubs, moveSub, nearer, openToday, picksOf, primaryOf, pullStep,
+  pushStep, putBack, setPrimary, settle, stepAt, stepProgress, takeIntoToday,
+  todaysWork, turnAll, turnDay, winsToday,
 } = await import("../src/lib/cascade.ts");
 
 let bad = 0;
@@ -106,43 +107,138 @@ const titles = (list) => list.map((s) => s.title);
     ])],
   });
   const after = takeIntoToday(g, "thisWeek", "w1");
-  check("a sub-goal with steps stays in its own tier",
+  check("a target with actions stays in its own tier",
     after.horizons.thisWeek.length === 1 && after.horizons.today.length === 0);
-  check("...marked as the one being worked on",
-    after.horizons.thisWeek[0].active === true);
-  check("...and its open steps are what today shows",
+  check("...with its actions scheduled onto today",
+    isOn(after.horizons.thisWeek[0], "today") === true);
+  check("...and its open actions are what today shows",
     todaysWork(after).map((w) => w.sub.title).join(" / ")
       === "Wrap long sentences / Green today's date");
-  check("...each carrying the goal it belongs to",
+  check("...each carrying the target it belongs to",
     todaysWork(after).every((w) => w.parent?.title === "Fix all the bugs"));
   check("picking it twice changes nothing",
     takeIntoToday(after, "thisWeek", "w1") === after);
 
   const one = completeStep(after, "thisWeek", "w1", "s1");
-  check("ticking a step leaves the goal open",
+  check("ticking an action leaves the target open",
     one.horizons.thisWeek[0].done === false,
     `${stepProgress(one.horizons.thisWeek[0]).done}/2`);
   check("...and still on today",
-    one.horizons.thisWeek[0].active === true);
+    isOn(one.horizons.thisWeek[0], "today") === true);
   check("...with only what is left showing on today",
     todaysWork(one).map((w) => w.sub.title).join() === "Green today's date");
 
   const both = completeStep(one, "thisWeek", "w1", "s2");
-  check("ticking the last step finishes the goal",
+  check("ticking the last action finishes the target",
     both.horizons.thisWeek[0].done === true);
   check("...where it was written all along",
     both.horizons.thisWeek.length === 1 && both.horizons.today.length === 0);
   check("...and it stops asking anything of today",
-    todaysWork(both).length === 0 && activeSubs(both).length === 0);
+    todaysWork(both).length === 0 && borrowedAt(both, "today").length === 0);
   check("...and nothing takes its place",
     both.horizons.oneMonth.length === 0 && openToday(both).length === 0);
 }
 
+/* ----------------------------- one action at a time, into any nearer tier */
+
 {
-  // Reopening a step reopens the heading, without also un-picking it.
+  // The shape from the screenshot: two targets in the month, one broken into
+  // three actions. The month is the plan; the week is what is being worked on.
+  const g = goal({
+    oneMonth: [
+      stepped("m1", "Finalise user interface", [
+        step("a1", "Notifications + stickers"),
+        step("a2", "Final features"),
+        step("a3", "Final app tour"),
+      ]),
+      sub("m2", "Finalise admin interface"),
+    ],
+  });
+
+  const one = pushStep(g, "oneMonth", "m1", "a1");
+  check("an action can be pushed a tier closer on its own",
+    borrowedAt(one, "thisWeek").map((b) => b.step.title).join()
+      === "Notifications + stickers",
+    JSON.stringify(borrowedAt(one, "thisWeek").map((b) => b.step.title)));
+  check("...tagged with the target it serves",
+    borrowedAt(one, "thisWeek")[0].parent.title === "Finalise user interface");
+  check("...which says where that target is written",
+    borrowedAt(one, "thisWeek")[0].parentHorizon === "oneMonth");
+  check("...while the target itself has not moved",
+    one.horizons.oneMonth.length === 2 && one.horizons.thisWeek.length === 0,
+    JSON.stringify(titles(one.horizons.oneMonth)));
+  check("...and the other target is untouched",
+    one.horizons.oneMonth[1].title === "Finalise admin interface");
+  check("...and its siblings stayed behind",
+    borrowedAt(one, "thisWeek").length === 1);
+
+  const two = pushStep(one, "oneMonth", "m1", "a2");
+  check("a second action can follow it",
+    borrowedAt(two, "thisWeek").length === 2,
+    JSON.stringify(borrowedAt(two, "thisWeek").map((b) => b.step.title)));
+  check("...leaving the third where it was",
+    stepAt(two.horizons.oneMonth[0].steps[2], "oneMonth") === "oneMonth");
+
+  // Ticking it in the week is ticking it in the target: same object, one count.
+  const ticked = completeStep(two, "oneMonth", "m1", "a1");
+  check("ticking a pushed action moves the target's own count",
+    stepProgress(ticked.horizons.oneMonth[0]).done === 1,
+    `${stepProgress(ticked.horizons.oneMonth[0]).done}/3`);
+  check("...and it leaves the week's list",
+    borrowedAt(ticked, "thisWeek").length === 1);
+
+  // Pushing again carries it the rest of the way down.
+  const nearerStill = pushStep(two, "oneMonth", "m1", "a1");
+  check("pushing again takes it to today",
+    borrowedAt(nearerStill, "today").map((b) => b.step.title).join()
+      === "Notifications + stickers");
+  check("...and off the week", borrowedAt(nearerStill, "thisWeek").length === 1);
+  check("today counts it as one thing", dayLoad([nearerStill]) === 1);
+
+  const home = pullStep(nearerStill, "oneMonth", "m1", "a1");
+  check("an action can be sent home again",
+    borrowedAt(home, "today").length === 0 && borrowedAt(home, "thisWeek").length === 1);
+  check("...back under its target",
+    stepAt(home.horizons.oneMonth[0].steps[0], "oneMonth") === "oneMonth");
+  check("sending home something already home does nothing",
+    pullStep(home, "oneMonth", "m1", "a1") === home);
+
+  check("the target is listed as lending",
+    lentSubs(two).map((x) => x.sub.title).join() === "Finalise user interface");
+}
+
+{
+  const g = goal({ today: [stepped("t1", "Here already", [step("s1", "a")])] });
+  check("nothing can be pushed past today",
+    nearer("today") === null && pushStep(g, "today", "t1", "s1") === g);
+  check("the tier below the month is the week", nearer("oneMonth") === "thisWeek");
+  check("...and below the week is today", nearer("thisWeek") === "today");
+}
+
+{
+  const g = goal({ oneMonth: [stepped("m1", "x", [step("s1", "a", true)])] });
+  check("a finished action is not pushed anywhere",
+    pushStep(g, "oneMonth", "m1", "s1") === g);
+}
+
+{
+  // Ticking the target by hand un-schedules its actions: a finished line is
+  // not still asking something of next week.
+  const g = pushStep(
+    goal({ oneMonth: [stepped("m1", "x", [step("s1", "a"), step("s2", "b")])] }),
+    "oneMonth", "m1", "s1");
+  const done = completeSub(g, "oneMonth", "m1");
+  check("finishing a target clears where its actions were scheduled",
+    borrowedAt(done, "thisWeek").length === 0,
+    JSON.stringify(borrowedAt(done, "thisWeek").map((b) => b.step.title)));
+  check("...and a finished target lends nothing", lentSubs(done).length === 0);
+}
+
+{
+  // Reopening an action reopens the target above it.
   const g = goal({
     thisWeek: [{ ...stepped("w1", "Fix all the bugs", [step("s1", "One", true)]),
-      done: true, active: undefined }],
+      done: true }],
   });
   const after = completeStep(g, "thisWeek", "w1", "s1");
   check("reopening the last step reopens its heading",
@@ -150,9 +246,9 @@ const titles = (list) => list.map((s) => s.title);
 }
 
 {
-  const s = settle({ ...stepped("w1", "x", [step("s1", "a", true)]), active: true, primary: true });
-  check("finishing a goal gives up the day's primary slot",
-    s.done === true && s.primary === undefined && s.active === undefined);
+  const s = settle({ ...stepped("w1", "x", [step("s1", "a", true)]), primary: true });
+  check("finishing a target gives up the day's primary slot",
+    s.done === true && s.primary === undefined);
 }
 
 /* ---------------------------------------------------------- putting it back */
@@ -174,8 +270,8 @@ const titles = (list) => list.map((s) => s.title);
     goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "One")])] }),
     "thisWeek", "w1");
   const back = putBack(g, "thisWeek", "w1");
-  check("a lending goal can stop lending",
-    back.horizons.thisWeek[0].active === undefined);
+  check("a lending target can stop lending",
+    isOn(back.horizons.thisWeek[0], "today") === false);
   check("...and today asks nothing again",
     todaysWork(back).length === 0);
   check("...without the goal itself moving",
@@ -208,7 +304,7 @@ const titles = (list) => list.map((s) => s.title);
     goal({ thisWeek: [stepped("w1", "Fix all the bugs",
       [step("s1", "a"), step("s2", "b"), step("s3", "c"), step("s4", "d")])] }),
     "thisWeek", "w1");
-  check("a goal being worked on counts once, not once per step",
+  check("a target being worked on counts once, not once per action",
     picksOf(g).length === 1, String(dayLoad([g])));
   check("...so a well-broken-down goal is not punished",
     atCapacity([g]) === false);
@@ -364,8 +460,8 @@ const titles = (list) => list.map((s) => s.title);
   // whichever door it comes through.
   const g = goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "a")])] });
   const after = moveSub(g, "thisWeek", "today", "w1");
-  check("moving a stepped goal to today lends it instead",
-    after.horizons.thisWeek[0].active === true && after.horizons.today.length === 0);
+  check("moving a target with actions to today lends them instead",
+    isOn(after.horizons.thisWeek[0], "today") && after.horizons.today.length === 0);
 }
 
 /* ----------------------------------------------------------- the small stuff */

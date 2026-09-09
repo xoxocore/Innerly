@@ -28,18 +28,24 @@ import {
   type Goal,
   type GoalColor,
   type Horizon,
+  type Step,
   type SubGoal,
 } from "@/lib/types";
 import {
   DAILY_CAP,
   VAGUE_HINT,
-  activeSubs,
+  borrowedAt,
   completeStep,
   completeSub,
   editSteps,
+  isOn,
   isVague,
+  nearer,
   picksOf,
+  pullStep,
+  pushStep,
   putBack,
+  stepAt,
   stepProgress,
   takeIntoToday,
   winsToday,
@@ -126,6 +132,19 @@ export function GoalThread({
     onUpdate(
       editSteps(goal, h, subId, (steps) => steps.filter((t) => t.id !== stepId))
     );
+
+  /* Pushing one action a tier closer. Today is the only tier with a cap on it,
+     so that is the only push that can be refused. */
+  const onPushStep = (h: Horizon, subId: string, stepId: string) => {
+    const step = goal.horizons[h].find((s) => s.id === subId)?.steps
+      ?.find((t) => t.id === stepId);
+    if (!step) return;
+    if (nearer(stepAt(step, h)) === "today" && full) return;
+    onUpdate(pushStep(goal, h, subId, stepId));
+  };
+
+  const onPullStep = (h: Horizon, subId: string, stepId: string) =>
+    onUpdate(pullStep(goal, h, subId, stepId));
 
   const removeSub = (h: Horizon, id: string) =>
     setHorizon(
@@ -281,27 +300,41 @@ export function GoalThread({
                             onStepTitle(key, sub.id, stepId, title)
                           }
                           onDropStep={(stepId) => onDropStep(key, sub.id, stepId)}
+                          onPushStep={(stepId) => onPushStep(key, sub.id, stepId)}
+                          horizon={key}
+                          dayFullForSteps={full}
+                          // Today is where things get done, not where they get
+                          // broken down: an action decomposed on the day it is
+                          // due is a target that was planned too late. It is
+                          // broken down where the target lives.
+                          allowSteps={!today}
                         />
                       ))}
                     </AnimatePresence>
                   </Reorder.Group>
 
-                  {/* The steps of whatever weekly or monthly goal is being
-                      worked on. They are shown here and ticked here, but they
-                      belong to the goal named beside them and are still counted
-                      there — which is why that goal has not moved. */}
-                  {today &&
-                    activeSubs(goal).map(({ sub: parent, horizon }) => (
-                      <BorrowedSteps
-                        key={parent.id}
-                        parent={parent}
-                        horizon={horizon}
-                        color={color}
-                        onStep={(stepId) => onStep(horizon, parent.id, stepId)}
-                        onPrimary={() => onPrimary(parent.id)}
-                        onPutBack={() => onPutBack(horizon, parent.id)}
-                      />
-                    ))}
+                  {/* Actions pushed down into this tier from a target written
+                      further out. They are shown here and ticked here, but they
+                      belong to the target named beside them and are still
+                      counted there — which is why that target has not moved. */}
+                  {borrowedAt(goal, key).map(({ step, parent, parentHorizon }) => (
+                    <BorrowedRow
+                      key={step.id}
+                      step={step}
+                      parent={parent}
+                      parentHorizon={parentHorizon}
+                      color={color}
+                      onStep={() => onStep(parentHorizon, parent.id, step.id)}
+                      onPush={
+                        nearer(key) && !(nearer(key) === "today" && full)
+                          ? () => onPushStep(parentHorizon, parent.id, step.id)
+                          : undefined
+                      }
+                      onPull={() => onPullStep(parentHorizon, parent.id, step.id)}
+                      onPrimary={today ? () => onPrimary(parent.id) : undefined}
+                      primary={today ? !!parent.primary : false}
+                    />
+                  ))}
 
                   <AddRow
                     label={addLabel}
@@ -460,71 +493,76 @@ function PrimaryFlag({
 }
 
 /**
- * The open steps of a sub-goal being worked on today.
+ * One action, sitting in a tier nearer than the target that owns it.
  *
- * They are ticked here but they are not here: the sub-goal is still sitting in
- * its own week with its count going up, which is what the tag beside each step
- * is saying.
+ * It is ticked here but it does not live here: the target is still in its own
+ * month with its count climbing, which is what the tag beside the action says.
+ * The tag is the whole point — a nearer tier full of untagged fragments is a
+ * list of errands, and the same list tagged is a plan being executed.
  */
-function BorrowedSteps({
+function BorrowedRow({
+  step,
   parent,
-  horizon,
+  parentHorizon,
   color,
+  primary,
   onStep,
+  onPush,
+  onPull,
   onPrimary,
-  onPutBack,
 }: {
+  step: Step;
   parent: SubGoal;
-  horizon: Horizon;
+  parentHorizon: Horizon;
   color: GoalColor;
-  onStep: (stepId: string) => void;
-  onPrimary: () => void;
-  onPutBack: () => void;
+  primary: boolean;
+  onStep: () => void;
+  /** Absent at Today, and while the day is full. */
+  onPush?: () => void;
+  onPull: () => void;
+  /** Only on Today: Rule A is about the day. */
+  onPrimary?: () => void;
 }) {
-  const open = (parent.steps ?? []).filter((step) => !step.done);
-  if (open.length === 0) return null;
-
   return (
-    <div className="mt-1.5">
-      {open.map((step, i) => (
-        <div
-          key={step.id}
-          className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-accent/40"
+    <div className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-accent/40">
+      {onPrimary ? (
+        <PrimaryFlag on={primary} color={color} onClick={onPrimary} />
+      ) : (
+        <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
+      )}
+      <button
+        onClick={onStep}
+        aria-label={`Mark "${step.title}" complete`}
+        className="grid h-[17px] w-[17px] shrink-0 place-items-center rounded-full border-[1.5px] transition-colors"
+        style={{ borderColor: color.dot }}
+      />
+      <span className="min-w-0 flex-1 break-words text-[13px] leading-snug">
+        {step.title}
+      </span>
+      <ParentTag
+        color={color}
+        title={`An action of "${parent.title}", which is in ${shortLabel(parentHorizon)}`}
+      >
+        {parent.title || shortLabel(parentHorizon)}
+      </ParentTag>
+      {onPush && (
+        <button
+          onClick={onPush}
+          aria-label={`Push "${step.title}" closer`}
+          title="Push a tier closer"
+          className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
         >
-          {/* The flag belongs to the sub-goal, so it is offered once — on the
-              first of its steps — rather than repeated down the group. */}
-          {i === 0 ? (
-            <PrimaryFlag on={!!parent.primary} color={color} onClick={onPrimary} />
-          ) : (
-            <span className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          )}
-          <button
-            onClick={() => onStep(step.id)}
-            aria-label={`Mark "${step.title}" complete`}
-            className="grid h-[17px] w-[17px] shrink-0 place-items-center rounded-full border-[1.5px] transition-colors"
-            style={{ borderColor: color.dot }}
-          />
-          <span className="min-w-0 flex-1 break-words text-[13px] leading-snug">
-            {step.title}
-          </span>
-          <ParentTag
-            color={color}
-            title={`Part of "${parent.title}" in ${shortLabel(horizon)}`}
-          >
-            {parent.title || shortLabel(horizon)}
-          </ParentTag>
-          {i === 0 && (
-            <button
-              onClick={onPutBack}
-              aria-label={`Put "${parent.title}" back in ${shortLabel(horizon)}`}
-              title="Not today after all"
-              className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
-            >
-              <CornerDownLeft className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      ))}
+          <ArrowDownToLine className="h-3.5 w-3.5" />
+        </button>
+      )}
+      <button
+        onClick={onPull}
+        aria-label={`Send "${step.title}" back to "${parent.title}"`}
+        title={`Send back to ${shortLabel(parentHorizon)}`}
+        className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
+      >
+        <CornerDownLeft className="h-3.5 w-3.5" />
+      </button>
     </div>
   );
 }
@@ -700,6 +738,10 @@ function SubGoalRow({
   onAddStep,
   onStepTitle,
   onDropStep,
+  onPushStep,
+  horizon,
+  dayFullForSteps,
+  allowSteps,
 }: {
   sub: SubGoal;
   color: GoalColor;
@@ -720,9 +762,19 @@ function SubGoalRow({
   onAddStep: () => void;
   onStepTitle: (stepId: string, title: string) => void;
   onDropStep: (stepId: string) => void;
+  /** Schedule one action a tier closer, leaving this target where it is. */
+  onPushStep: (stepId: string) => void;
+  /** Where this target is written — what "a tier closer" is measured from. */
+  horizon: Horizon;
+  dayFullForSteps: boolean;
+  /** False on Today, which holds actions rather than plans for them. */
+  allowSteps: boolean;
 }) {
   const controls = useDragControls();
   const progress = stepProgress(sub);
+  // "On today" is not a flag any more: it is simply true when one of this
+  // target's open actions is scheduled there.
+  const onToday = isOn(sub, "today");
   const [touched, setTouched] = useState(false);
   // Rule C, and only ever as advice: it waits until the field has been left, so
   // it cannot sit there correcting a half-typed word.
@@ -803,10 +855,10 @@ function SubGoalRow({
         {onTake && !sub.done && (
           <button
             onClick={onTake}
-            disabled={dayFull || sub.active}
+            disabled={dayFull || onToday}
             aria-label={`Take "${sub.title || "this"}" into today`}
             title={
-              sub.active
+              onToday
                 ? "Already on today"
                 : dayFull
                   ? `Today is full — ${DAILY_CAP} is the cap`
@@ -814,20 +866,20 @@ function SubGoalRow({
             }
             className={cn(
               "inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-[3px] text-[10.5px] font-medium transition-colors",
-              sub.active
+              onToday
                 ? "border-transparent text-muted-foreground"
                 : "border-border text-muted-foreground hover:border-transparent hover:text-foreground",
               "disabled:pointer-events-none"
             )}
             style={
-              sub.active
+              onToday
                 ? undefined
                 : dayFull
                   ? { opacity: 0.35 }
                   : undefined
             }
           >
-            {sub.active ? (
+            {onToday ? (
               <>
                 <Check className="h-3 w-3" strokeWidth={3} /> On today
               </>
@@ -868,51 +920,87 @@ function SubGoalRow({
       {/* The steps, joined to their heading by a rule in the goal's own colour.
           That line is the whole of the link: it says these belong to the thing
           above them, and it travels with the sub-goal wherever it is written. */}
+      {(allowSteps || (sub.steps?.length ?? 0) > 0) && (
       <div
         className="ml-[13px] border-l pl-3"
         style={{ borderColor: color.dot, opacity: 0.5 }}
       >
         <div style={{ opacity: 1 / 0.5 }}>
-          {sub.steps?.map((step) => (
-            <div key={step.id} className="flex items-center gap-2 py-[3px]">
-              <button
-                onClick={() => onStep(step.id)}
-                aria-label={step.done ? "Mark step incomplete" : "Mark step complete"}
-                className="grid h-[13px] w-[13px] shrink-0 place-items-center rounded-[4px] border transition-colors"
-                style={{
-                  borderColor: color.dot,
-                  backgroundColor: step.done ? color.dot : "transparent",
-                }}
-              >
-                {step.done && <Check className="h-2 w-2 text-white" strokeWidth={4} />}
-              </button>
-              <input
-                value={step.title}
-                onChange={(e) => onStepTitle(step.id, e.target.value)}
-                placeholder="A smaller piece of it…"
-                className={cn(
-                  "min-w-0 flex-1 bg-transparent text-[12px] leading-snug outline-none placeholder:text-muted-foreground/50",
-                  step.done && "text-muted-foreground line-through"
+          {sub.steps?.map((step) => {
+            const where = stepAt(step, horizon);
+            const next = nearer(where);
+            // The arrow is what turns a month's target into this week's work,
+            // so it is on the action itself rather than on the target: the
+            // target is the plan and does not move, the action is the doing.
+            const canPush =
+              !step.done && !!next && !(next === "today" && dayFullForSteps);
+            return (
+              <div key={step.id} className="flex items-center gap-2 py-[3px]">
+                <button
+                  onClick={() => onStep(step.id)}
+                  aria-label={step.done ? "Mark step incomplete" : "Mark step complete"}
+                  className="grid h-[13px] w-[13px] shrink-0 place-items-center rounded-[4px] border transition-colors"
+                  style={{
+                    borderColor: color.dot,
+                    backgroundColor: step.done ? color.dot : "transparent",
+                  }}
+                >
+                  {step.done && <Check className="h-2 w-2 text-white" strokeWidth={4} />}
+                </button>
+                <input
+                  value={step.title}
+                  onChange={(e) => onStepTitle(step.id, e.target.value)}
+                  placeholder="An action that gets you there…"
+                  className={cn(
+                    "min-w-0 flex-1 bg-transparent text-[12px] leading-snug outline-none placeholder:text-muted-foreground/50",
+                    step.done && "text-muted-foreground line-through"
+                  )}
+                />
+                {/* Where it has been sent, said on the target's own list — so
+                    the plan stays honest about what is already scheduled. */}
+                {step.at && !step.done && (
+                  <span
+                    className="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.08em]"
+                    style={{ backgroundColor: color.soft, color: color.ink }}
+                    title={`Scheduled on ${shortLabel(step.at)}`}
+                  >
+                    On {shortLabel(step.at)}
+                  </span>
                 )}
-              />
-              <button
-                onClick={() => onDropStep(step.id)}
-                aria-label="Remove step"
-                className="shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground"
-              >
-                <Trash className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+                {canPush && (
+                  <button
+                    onClick={() => onPushStep(step.id)}
+                    aria-label={`Push "${step.title || "this action"}" to ${shortLabel(next)}`}
+                    title={`Push to ${shortLabel(next)}`}
+                    // A shade more present than the bin beside it: scheduling
+                    // an action is the thing this row is for, deleting it is not.
+                    className="shrink-0 text-muted-foreground/60 transition-colors hover:text-foreground"
+                  >
+                    <ArrowDownToLine className="h-3 w-3" />
+                  </button>
+                )}
+                <button
+                  onClick={() => onDropStep(step.id)}
+                  aria-label="Remove step"
+                  className="shrink-0 text-muted-foreground/40 transition-colors hover:text-foreground"
+                >
+                  <Trash className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
 
-          <button
-            onClick={onAddStep}
-            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <Plus className="h-3 w-3" /> Add step
-          </button>
+          {allowSteps && (
+            <button
+              onClick={onAddStep}
+              className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11.5px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Plus className="h-3 w-3" /> Add action
+            </button>
+          )}
         </div>
       </div>
+      )}
     </Reorder.Item>
   );
 }
