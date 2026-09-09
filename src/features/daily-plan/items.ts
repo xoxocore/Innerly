@@ -1,11 +1,11 @@
 import {
-  HORIZONS,
   HORIZON_SHORT,
   horizonDate,
   type Goal,
   type Horizon,
   type SubGoal,
 } from "@/lib/types";
+import { placements } from "@/lib/cascade";
 
 export type PlanItem = {
   goalId: string;
@@ -15,26 +15,33 @@ export type PlanItem = {
   horizonLabel: string;
   sub: SubGoal;
   date: Date;
+  /** Where in the goal's tree the line lives, so a tick can find it again. */
+  home: Horizon;
+  path: string[];
 };
 
-// All sub-goals of one goal, each resolved to a concrete calendar date.
+/**
+ * Every line of one goal, on the date of the tier it is actually shown in.
+ *
+ * Read through `placements` rather than off the horizon lists directly,
+ * because those two answers differ the moment anything is pushed down: an
+ * action of a month's target that is being worked on this week belongs on the
+ * calendar at the week, not the month. A calendar that disagreed with the
+ * thread beside it would be worse than no calendar.
+ */
 export function goalItems(goal: Goal): PlanItem[] {
   const base = new Date(goal.createdAt);
-  const out: PlanItem[] = [];
-  for (const { key } of HORIZONS) {
-    for (const sub of goal.horizons[key]) {
-      out.push({
-        goalId: goal.id,
-        goalTitle: goal.title,
-        color: goal.color,
-        horizon: key,
-        horizonLabel: HORIZON_SHORT[key],
-        sub,
-        date: horizonDate(base, key),
-      });
-    }
-  }
-  return out;
+  return placements(goal).map(({ sub, tier, home, path }) => ({
+    goalId: goal.id,
+    goalTitle: goal.title,
+    color: goal.color,
+    horizon: tier,
+    horizonLabel: HORIZON_SHORT[tier],
+    sub,
+    date: horizonDate(base, tier),
+    home,
+    path,
+  }));
 }
 
 export function allItems(goals: Goal[]): PlanItem[] {

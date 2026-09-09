@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { KEYS, usePersistentState } from "@/lib/storage";
-import { completeSub, turnAll } from "@/lib/cascade";
+import { complete, removeByPath, shownAt, turnAll } from "@/lib/cascade";
+import type { Horizon } from "@/lib/types";
 import {
   isDataUrl,
   signVisionImages,
@@ -253,6 +254,9 @@ export type TodayItem = {
   goalId?: string;
   goalTitle?: string;
   color?: string;
+  /** Where in the goal's tree this line lives, so a tick can find it again. */
+  home?: Horizon;
+  path?: string[];
 };
 
 // Single source of truth for the Today list, shared by the Dashboard and the
@@ -264,17 +268,22 @@ export function useTodayPlan() {
   const [goals, setGoals] = useGoals();
   const [tasks, setTasks] = useTodayTasks();
 
+  // Everything the day is showing, which is not the same as the `today` list:
+  // an action pushed down from a month's target is shown on today while still
+  // living inside that target, and the home page has to see it too.
   const goalItems: TodayItem[] = goals.flatMap((g) =>
-    g.horizons.today
-      .filter((s) => s.title.trim())
-      .map((s) => ({
-        id: s.id,
-        title: s.title,
-        done: s.done,
+    shownAt(g, "today")
+      .filter((p) => p.sub.title.trim())
+      .map((p) => ({
+        id: p.sub.id,
+        title: p.sub.title,
+        done: p.sub.done,
         source: "goal" as const,
         goalId: g.id,
         goalTitle: g.title,
         color: g.color,
+        home: p.home,
+        path: p.path,
       }))
   );
   const taskItems: TodayItem[] = tasks.map((t) => ({
@@ -292,7 +301,11 @@ export function useTodayPlan() {
       // the day's primary slot. Nothing new arrives to replace it: what today
       // holds was chosen on the goal page, and only ever there.
       setGoals((prev) =>
-        prev.map((g) => (g.id === item.goalId ? completeSub(g, "today", item.id) : g))
+        prev.map((g) =>
+          g.id === item.goalId && item.home && item.path
+            ? complete(g, item.home, item.path)
+            : g
+        )
       );
     } else {
       setTasks((prev) =>
@@ -311,14 +324,8 @@ export function useTodayPlan() {
     if (item.source === "goal") {
       setGoals((prev) =>
         prev.map((g) =>
-          g.id === item.goalId
-            ? {
-                ...g,
-                horizons: {
-                  ...g.horizons,
-                  today: g.horizons.today.filter((s) => s.id !== item.id),
-                },
-              }
+          g.id === item.goalId && item.home && item.path
+            ? removeByPath(g, item.home, item.path)
             : g
         )
       );

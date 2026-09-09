@@ -39,50 +39,50 @@ export type Horizon =
   | "today";
 
 /**
- * One action under a target.
+ * One line of a plan, at any depth.
  *
- * "Finalise the user interface" is a thing you can tick, but it is really
- * notifications, then the last features, then the app tour — and a list that
- * cannot say so makes you hold the parts in your head. Actions are always
- * optional: a target that is genuinely one action stays one line.
+ * A target and an action are the same thing seen from different distances.
+ * "Finalise the user interface" is a target of the year and breaks into
+ * actions; push one of those actions down to six months and it is a target
+ * there, with actions of its own. The structure has to be able to say that, so
+ * there is one node type all the way down rather than a target type and an
+ * action type that would have to swap places whenever something moved.
+ *
+ * Nothing is ever copied between tiers. A line pushed to a nearer tier is the
+ * same object, shown somewhere else — which is why ticking it moves the count
+ * of the target it came from, with no second version to keep in step.
  */
-export type Step = {
-  id: string;
-  title: string;
-  done: boolean;
-  /**
-   * The nearer tier this action has been pushed down to, if any.
-   *
-   * The action does not leave its target — the target is the plan and stays
-   * written where it was written, its count climbing as its actions are done.
-   * This only says where the doing of it is scheduled, so the week can show
-   * "Notifications + stickers" tagged with the target it serves while the
-   * target itself sits in the month.
-   */
-  at?: Horizon;
-};
-
 export type SubGoal = {
   id: string;
   title: string;
   /**
-   * Derived when there are steps: a sub-goal is finished exactly when all of
-   * its steps are. Never set by hand in that case — see lib/cascade.
+   * Derived when there are actions beneath: a line is finished exactly when
+   * they are. Never set by hand in that case — see lib/cascade.
    */
   done: boolean;
-  /** Optional. A sub-goal without them behaves as it always did. */
-  steps?: Step[];
+  /** Its actions. Always optional: a line that is one thing stays one line. */
+  steps?: SubGoal[];
   /**
-   * Legacy flag: "all of this target's open actions are on Today". Kept only
-   * so goals saved before actions could be placed individually still load —
-   * normalizeGoal turns it into `at: "today"` on each of them and drops it.
+   * The nearer tier this line has been pushed down to, if any.
+   *
+   * It does not leave the target it belongs to — the plan is the plan and stays
+   * written where it was written, its count climbing as its parts are done.
+   * This only says where the doing of it has been scheduled, so the week can
+   * show an action tagged with the month's target it serves.
+   *
+   * Only ever one tier nearer than where the line currently sits. A year's
+   * target does not become this afternoon's errand in one press: it becomes a
+   * six-month target, then a three-month one, and each of those steps is a
+   * decision somebody made.
    */
+  at?: Horizon;
+  /** Legacy: "all of this target's open actions are on Today". Migrated away. */
   active?: boolean;
   /** When it was ticked — what the completed log is ordered and dated by. */
   completedAt?: string;
   /** Carried into a new day without having been finished. */
   rolledOver?: boolean;
-  /** The longer horizon this was taken down from — what the tag names. */
+  /** The tier this was moved down from by hand, for the tag on Today. */
   promotedFrom?: Horizon;
   /**
    * The one thing today that makes the rest easier or unnecessary. At most one
@@ -90,6 +90,9 @@ export type SubGoal = {
    */
   primary?: boolean;
 };
+
+/** Kept as a name for a line seen as one of its parent's parts. */
+export type Step = SubGoal;
 
 export type Goal = {
   id: string;
@@ -128,7 +131,8 @@ export function emptyHorizons(): Record<Horizon, SubGoal[]> {
 export const HORIZONS: {
   key: Horizon;
   label: string;
-  addLabel: string;
+  /** Null where a tier cannot be written into directly. */
+  addLabel: string | null;
   prompt: string;
 }[] = [
   {
@@ -158,8 +162,11 @@ export const HORIZONS: {
   {
     key: "thisWeek",
     label: "Weekly Goal",
-    addLabel: "Add target",
-    prompt: "What has to be done this week for that?",
+    // Nothing is written straight into the week. A weekly target would be a
+    // second copy of a monthly one, drifting out of step with it the first
+    // time either was ticked — so the week holds what the month sent down.
+    addLabel: null,
+    prompt: "Pushed down from This Month",
   },
   {
     key: "today",
@@ -293,16 +300,20 @@ export function goalColor(key: string): GoalColor {
 const rid = () =>
   Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
-function normSub(s: unknown): SubGoal | null {
+function normSub(s: unknown, depth = 0): SubGoal | null {
   if (!s || typeof s !== "object") return null;
+  // Deep enough for a year broken all the way down to an afternoon, and a hard
+  // stop so a cyclic or absurd saved value cannot spin here forever.
+  if (depth > 8) return null;
   const o = s as Record<string, unknown>;
   const sub: SubGoal = {
     id: typeof o.id === "string" ? o.id : rid(),
     title: typeof o.title === "string" ? o.title : "",
     done: !!o.done,
     steps: Array.isArray(o.steps)
-      ? (o.steps.map(normStep).filter(Boolean) as Step[])
+      ? (o.steps.map((t) => normSub(t, depth + 1)).filter(Boolean) as SubGoal[])
       : undefined,
+    at: isHorizon(o.at) ? o.at : undefined,
     completedAt: typeof o.completedAt === "string" ? o.completedAt : undefined,
     rolledOver: o.rolledOver === true ? true : undefined,
     promotedFrom: isHorizon(o.promotedFrom) ? o.promotedFrom : undefined,
@@ -315,17 +326,6 @@ function normSub(s: unknown): SubGoal | null {
     sub.steps = sub.steps.map((t) => (t.done ? t : { ...t, at: "today" }));
   }
   return sub;
-}
-
-function normStep(s: unknown): Step | null {
-  if (!s || typeof s !== "object") return null;
-  const o = s as Record<string, unknown>;
-  return {
-    id: typeof o.id === "string" ? o.id : rid(),
-    title: typeof o.title === "string" ? o.title : "",
-    done: !!o.done,
-    at: isHorizon(o.at) ? o.at : undefined,
-  };
 }
 
 function isHorizon(v: unknown): v is Horizon {

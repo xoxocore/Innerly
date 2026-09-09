@@ -27,7 +27,7 @@ import {
   type GoalColor,
   type Horizon,
 } from "@/lib/types";
-import { dayLoad, setPrimary } from "@/lib/cascade";
+import { complete, dayLoad, setPrimary } from "@/lib/cascade";
 import { useApp } from "@/state/app-context";
 import { useDayTasks, useDayTurn, useGoals, uid } from "@/state/use-data";
 import { useTaskDays } from "@/state/use-task-days";
@@ -304,21 +304,12 @@ export function DailyPlan() {
     setSelectedId(null);
   };
 
-  const toggleSub = (goalId: string, horizon: Horizon, subId: string) =>
+  // Through the engine, so a tick in the day panel settles the same way it
+  // would on the goal itself — a heading follows its parts, and a finished
+  // line gives up the day's primary slot.
+  const toggleSub = (goalId: string, home: Horizon, path: string[]) =>
     setGoals((prev) =>
-      prev.map((g) =>
-        g.id === goalId
-          ? {
-              ...g,
-              horizons: {
-                ...g.horizons,
-                [horizon]: g.horizons[horizon].map((s) =>
-                  s.id === subId ? { ...s, done: !s.done } : s
-                ),
-              },
-            }
-          : g
-      )
+      prev.map((g) => (g.id === goalId ? complete(g, home, path) : g))
     );
 
   // Goal sub-goals resolved to the day their horizon falls on, so the calendar
@@ -467,9 +458,7 @@ export function DailyPlan() {
                       note={item.goalTitle || c.fromGoals}
                       done={item.sub.done}
                       color={goalColor(item.color)}
-                      onToggle={() =>
-                        toggleSub(item.goalId, item.horizon, item.sub.id)
-                      }
+                      onToggle={() => toggleSub(item.goalId, item.home, item.path)}
                     />
                   ))}
                   {dayTasks.map((t) => (

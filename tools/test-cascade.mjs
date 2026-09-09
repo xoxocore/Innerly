@@ -1,12 +1,15 @@
 // The goal engine, on its own.
 //
-// The rule this file exists to defend is a negative one: nothing reaches Today
-// unless a person put it there. An earlier version of the engine promoted the
-// next action the moment the last was ticked, and the failure mode was quiet —
-// a year's thinking drains into one afternoon and nobody sees it happen. So the
-// tests below check the absence of that as carefully as they check the presence
-// of anything else, alongside the three rules that hold around the choice: one
-// primary, three at most, and a title you can honestly tick.
+// Two negatives are the reason this file exists, and both are the kind that
+// pass unnoticed if you only ever check that features work.
+//
+// Nothing reaches Today unless a person put it there. An early version
+// promoted the next action the moment the last was ticked, and a year's
+// thinking drained into one afternoon with nobody seeing it happen.
+//
+// And nothing skips a rung. A year's target becomes a six-month target, then a
+// three-month one, and so on; the arrow that offered to take it straight to
+// this afternoon was quietly turning a plan into a wish with a deadline.
 //
 //   node tools/test-cascade.mjs
 //
@@ -17,18 +20,17 @@
 // no transpiled copy that might differ from what the app actually runs.
 const {
   DAILY_CAP, VAGUE_HINT,
-  atCapacity, borrowedAt, completeStep, completeSub, dayLoad, editSteps, isOn,
-  isVague, lentSubs, moveSub, nearer, openToday, picksOf, primaryOf, pullStep,
-  pushStep, putBack, setPrimary, settle, stepAt, stepProgress, takeIntoToday,
-  todaysWork, turnAll, turnDay, winsToday,
+  atCapacity, childrenHere, complete, dayLoad, editByPath, editParts,
+  findByPath, isVague, nearer, openToday, picksOf, placements, primaryOf, pull,
+  push, removeByPath, setPrimary, settle, shownAt, stepProgress, todaysWork,
+  turnAll, turnDay, winsToday,
 } = await import("../src/lib/cascade.ts");
 
 let bad = 0;
 const check = (n, ok, x) => { if (!ok) bad++; console.log(`${ok ? "PASS" : "FAIL"}  ${n}${x ? "  — " + x : ""}`); };
 
 const sub = (id, title, done = false) => ({ id, title, done });
-const stepped = (id, title, steps) => ({ id, title, done: false, steps });
-const step = (id, title, done = false) => ({ id, title, done });
+const parent = (id, title, steps) => ({ id, title, done: false, steps });
 const goal = (horizons, extra = {}) => ({
   id: "g", title: "Get Innerly live", color: "blue",
   createdAt: "2026-01-01T00:00:00.000Z", order: 0,
@@ -39,249 +41,139 @@ const goal = (horizons, extra = {}) => ({
   ...extra,
 });
 const titles = (list) => list.map((s) => s.title);
+const shownTitles = (g, h) => shownAt(g, h).map((p) => p.sub.title);
 
-/* ------------------------------------ nothing arrives on its own any more */
+/* ---------------------------------------------------- one rung at a time */
 
 {
+  check("the rung below a year is six months", nearer("year") === "sixMonths");
+  check("...then three months", nearer("sixMonths") === "threeMonths");
+  check("...then the month", nearer("threeMonths") === "oneMonth");
+  check("...then the week", nearer("oneMonth") === "thisWeek");
+  check("...then today", nearer("thisWeek") === "today");
+  check("...and nothing after that", nearer("today") === null);
+}
+
+{
+  // The screenshot: a year's target with three actions under it.
   const g = goal({
-    oneMonth: [sub("m1", "Admin dashboard")],
-    thisWeek: [sub("w1", "Fix wording", true)],
-    today: [sub("t1", "Change the card")],
-  });
-  const after = completeSub(g, "today", "t1");
-  check("clearing the day does not refill it",
-    openToday(after).length === 0, titles(openToday(after)).join(" / "));
-  check("...and does not move the month's work either",
-    titles(after.horizons.oneMonth).join() === "Admin dashboard",
-    titles(after.horizons.oneMonth).join(" / "));
-  check("...or the week's",
-    after.horizons.thisWeek.length === 1);
-}
-
-{
-  const g = goal({ year: [sub("y1", "100,000 users")] });
-  check("a goal written only against next year stays there",
-    openToday(g).length === 0 && g.horizons.year.length === 1);
-}
-
-{
-  // The one that used to happen on its own, now asked for.
-  const g = goal({ thisWeek: [sub("w1", "Fix the wording")] });
-  const after = takeIntoToday(g, "thisWeek", "w1");
-  check("taking something into today moves it",
-    titles(openToday(after)).join() === "Fix the wording");
-  check("...out of the tier it came from",
-    after.horizons.thisWeek.length === 0);
-  check("...tagged with where it came from",
-    openToday(after)[0].promotedFrom === "thisWeek");
-}
-
-{
-  const g = goal({ today: [sub("t1", "Already here")] });
-  check("today cannot take from itself",
-    takeIntoToday(g, "today", "t1") === g);
-}
-
-{
-  const g = goal({ thisWeek: [sub("w1", "Done already", true)] });
-  check("a finished sub-goal cannot be picked",
-    takeIntoToday(g, "thisWeek", "w1") === g);
-}
-
-{
-  const g = goal({ oneMonth: [sub("m1", "Ship the report")] });
-  const after = takeIntoToday(g, "oneMonth", "m1");
-  check("anything can be picked, not only the week",
-    titles(openToday(after)).join() === "Ship the report");
-  check("...and says it came from the month",
-    openToday(after)[0].promotedFrom === "oneMonth");
-}
-
-/* ------------------------------------------- a stepped goal lends, not moves */
-
-{
-  const g = goal({
-    thisWeek: [stepped("w1", "Fix all the bugs", [
-      step("s1", "Wrap long sentences"),
-      step("s2", "Green today's date"),
+    year: [parent("y1", "Finalise user Interface", [
+      sub("a1", "test 1"), sub("a2", "test 2"), sub("a3", "test 3"),
     ])],
   });
-  const after = takeIntoToday(g, "thisWeek", "w1");
-  check("a target with actions stays in its own tier",
-    after.horizons.thisWeek.length === 1 && after.horizons.today.length === 0);
-  check("...with its actions scheduled onto today",
-    isOn(after.horizons.thisWeek[0], "today") === true);
-  check("...and its open actions are what today shows",
-    todaysWork(after).map((w) => w.sub.title).join(" / ")
-      === "Wrap long sentences / Green today's date");
-  check("...each carrying the target it belongs to",
-    todaysWork(after).every((w) => w.parent?.title === "Fix all the bugs"));
-  check("picking it twice changes nothing",
-    takeIntoToday(after, "thisWeek", "w1") === after);
 
-  const one = completeStep(after, "thisWeek", "w1", "s1");
-  check("ticking an action leaves the target open",
-    one.horizons.thisWeek[0].done === false,
-    `${stepProgress(one.horizons.thisWeek[0]).done}/2`);
-  check("...and still on today",
-    isOn(one.horizons.thisWeek[0], "today") === true);
-  check("...with only what is left showing on today",
-    todaysWork(one).map((w) => w.sub.title).join() === "Green today's date");
-
-  const both = completeStep(one, "thisWeek", "w1", "s2");
-  check("ticking the last action finishes the target",
-    both.horizons.thisWeek[0].done === true);
-  check("...where it was written all along",
-    both.horizons.thisWeek.length === 1 && both.horizons.today.length === 0);
-  check("...and it stops asking anything of today",
-    todaysWork(both).length === 0 && borrowedAt(both, "today").length === 0);
-  check("...and nothing takes its place",
-    both.horizons.oneMonth.length === 0 && openToday(both).length === 0);
-}
-
-/* ----------------------------- one action at a time, into any nearer tier */
-
-{
-  // The shape from the screenshot: two targets in the month, one broken into
-  // three actions. The month is the plan; the week is what is being worked on.
-  const g = goal({
-    oneMonth: [
-      stepped("m1", "Finalise user interface", [
-        step("a1", "Notifications + stickers"),
-        step("a2", "Final features"),
-        step("a3", "Final app tour"),
-      ]),
-      sub("m2", "Finalise admin interface"),
-    ],
-  });
-
-  const one = pushStep(g, "oneMonth", "m1", "a1");
-  check("an action can be pushed a tier closer on its own",
-    borrowedAt(one, "thisWeek").map((b) => b.step.title).join()
-      === "Notifications + stickers",
-    JSON.stringify(borrowedAt(one, "thisWeek").map((b) => b.step.title)));
+  const once = push(g, "year", ["y1", "a1"]);
+  check("an action of a year's target goes to six months, not today",
+    shownTitles(once, "sixMonths").join() === "test 1",
+    JSON.stringify(shownTitles(once, "sixMonths")));
+  check("...and today is untouched", shownAt(once, "today").length === 0);
+  check("...while the target stays in the year",
+    shownTitles(once, "year").join() === "Finalise user Interface");
+  check("...and its siblings stayed with it",
+    childrenHere(once.horizons.year[0], "year").map((c) => c.title).join()
+      === "test 2,test 3");
   check("...tagged with the target it serves",
-    borrowedAt(one, "thisWeek")[0].parent.title === "Finalise user interface");
-  check("...which says where that target is written",
-    borrowedAt(one, "thisWeek")[0].parentHorizon === "oneMonth");
-  check("...while the target itself has not moved",
-    one.horizons.oneMonth.length === 2 && one.horizons.thisWeek.length === 0,
-    JSON.stringify(titles(one.horizons.oneMonth)));
-  check("...and the other target is untouched",
-    one.horizons.oneMonth[1].title === "Finalise admin interface");
-  check("...and its siblings stayed behind",
-    borrowedAt(one, "thisWeek").length === 1);
+    shownAt(once, "sixMonths")[0].parent?.title === "Finalise user Interface");
 
-  const two = pushStep(one, "oneMonth", "m1", "a2");
-  check("a second action can follow it",
-    borrowedAt(two, "thisWeek").length === 2,
-    JSON.stringify(borrowedAt(two, "thisWeek").map((b) => b.step.title)));
-  check("...leaving the third where it was",
-    stepAt(two.horizons.oneMonth[0].steps[2], "oneMonth") === "oneMonth");
+  const twice = push(once, "year", ["y1", "a1"]);
+  check("pushing again takes it to three months",
+    shownTitles(twice, "threeMonths").join() === "test 1");
+  check("...and it is no longer at six months",
+    shownAt(twice, "sixMonths").length === 0);
 
-  // Ticking it in the week is ticking it in the target: same object, one count.
-  const ticked = completeStep(two, "oneMonth", "m1", "a1");
-  check("ticking a pushed action moves the target's own count",
-    stepProgress(ticked.horizons.oneMonth[0]).done === 1,
-    `${stepProgress(ticked.horizons.oneMonth[0]).done}/3`);
-  check("...and it leaves the week's list",
-    borrowedAt(ticked, "thisWeek").length === 1);
-
-  // Pushing again carries it the rest of the way down.
-  const nearerStill = pushStep(two, "oneMonth", "m1", "a1");
-  check("pushing again takes it to today",
-    borrowedAt(nearerStill, "today").map((b) => b.step.title).join()
-      === "Notifications + stickers");
-  check("...and off the week", borrowedAt(nearerStill, "thisWeek").length === 1);
-  check("today counts it as one thing", dayLoad([nearerStill]) === 1);
-
-  const home = pullStep(nearerStill, "oneMonth", "m1", "a1");
-  check("an action can be sent home again",
-    borrowedAt(home, "today").length === 0 && borrowedAt(home, "thisWeek").length === 1);
-  check("...back under its target",
-    stepAt(home.horizons.oneMonth[0].steps[0], "oneMonth") === "oneMonth");
-  check("sending home something already home does nothing",
-    pullStep(home, "oneMonth", "m1", "a1") === home);
-
-  check("the target is listed as lending",
-    lentSubs(two).map((x) => x.sub.title).join() === "Finalise user interface");
+  const back = pull(twice, "year", ["y1", "a1"]);
+  check("pulling brings it back one rung, not all the way",
+    shownTitles(back, "sixMonths").join() === "test 1",
+    JSON.stringify(shownTitles(back, "sixMonths")));
+  const home = pull(back, "year", ["y1", "a1"]);
+  check("...and again puts it back under its target",
+    home.horizons.year[0].steps[0].at === undefined &&
+      childrenHere(home.horizons.year[0], "year").length === 3);
+  check("pulling something already home does nothing",
+    pull(home, "year", ["y1", "a1"]) === home);
 }
 
 {
-  const g = goal({ today: [stepped("t1", "Here already", [step("s1", "a")])] });
-  check("nothing can be pushed past today",
-    nearer("today") === null && pushStep(g, "today", "t1", "s1") === g);
-  check("the tier below the month is the week", nearer("oneMonth") === "thisWeek");
-  check("...and below the week is today", nearer("thisWeek") === "today");
-}
-
-{
-  const g = goal({ oneMonth: [stepped("m1", "x", [step("s1", "a", true)])] });
-  check("a finished action is not pushed anywhere",
-    pushStep(g, "oneMonth", "m1", "s1") === g);
-}
-
-{
-  // Ticking the target by hand un-schedules its actions: a finished line is
-  // not still asking something of next week.
-  const g = pushStep(
-    goal({ oneMonth: [stepped("m1", "x", [step("s1", "a"), step("s2", "b")])] }),
-    "oneMonth", "m1", "s1");
-  const done = completeSub(g, "oneMonth", "m1");
-  check("finishing a target clears where its actions were scheduled",
-    borrowedAt(done, "thisWeek").length === 0,
-    JSON.stringify(borrowedAt(done, "thisWeek").map((b) => b.step.title)));
-  check("...and a finished target lends nothing", lentSubs(done).length === 0);
-}
-
-{
-  // Reopening an action reopens the target above it.
+  // A whole target can descend too, one rung at a time, with its parts.
   const g = goal({
-    thisWeek: [{ ...stepped("w1", "Fix all the bugs", [step("s1", "One", true)]),
-      done: true }],
+    year: [parent("y1", "Finalise user Interface", [sub("a1", "test 1")])],
   });
-  const after = completeStep(g, "thisWeek", "w1", "s1");
-  check("reopening the last step reopens its heading",
-    after.horizons.thisWeek[0].done === false);
+  const once = push(g, "year", ["y1"]);
+  check("a target pushed down goes one rung",
+    shownTitles(once, "sixMonths").join() === "Finalise user Interface");
+  check("...and its parts come with it",
+    childrenHere(once.horizons.year[0], "sixMonths").length === 1);
+  check("...leaving the year showing nothing",
+    shownAt(once, "year").length === 0);
 }
 
 {
-  const s = settle({ ...stepped("w1", "x", [step("s1", "a", true)]), primary: true });
-  check("finishing a target gives up the day's primary slot",
-    s.done === true && s.primary === undefined);
-}
-
-/* ---------------------------------------------------------- putting it back */
-
-{
-  const g = takeIntoToday(
-    goal({ thisWeek: [sub("w1", "Fix the wording")] }), "thisWeek", "w1");
-  const back = putBack(g, "today", "w1");
-  check("something taken down can go home",
-    titles(back.horizons.thisWeek).join() === "Fix the wording");
-  check("...leaving today empty",
-    back.horizons.today.length === 0);
-  check("...and losing the tag on the way",
-    back.horizons.thisWeek[0].promotedFrom === undefined);
+  const g = goal({ today: [parent("t1", "Here already", [sub("s1", "a")])] });
+  check("nothing on today can be pushed further",
+    push(g, "today", ["t1"]) === g);
+  check("...nor its parts", push(g, "today", ["t1", "s1"]) === g);
 }
 
 {
-  const g = takeIntoToday(
-    goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "One")])] }),
-    "thisWeek", "w1");
-  const back = putBack(g, "thisWeek", "w1");
-  check("a lending target can stop lending",
-    isOn(back.horizons.thisWeek[0], "today") === false);
-  check("...and today asks nothing again",
-    todaysWork(back).length === 0);
-  check("...without the goal itself moving",
-    back.horizons.thisWeek.length === 1);
+  const g = goal({ oneMonth: [parent("m1", "x", [sub("s1", "a", true)])] });
+  check("a finished line is not pushed anywhere",
+    push(g, "oneMonth", ["m1", "s1"]) === g);
+}
+
+/* --------------------------------- an action becomes a target where it lands */
+
+{
+  const g = push(
+    goal({ year: [parent("y1", "Finalise user Interface", [sub("a1", "test 1")])] }),
+    "year", ["y1", "a1"]);
+
+  const grown = editParts(g, "year", ["y1", "a1"], (steps) => [
+    ...steps, sub("b1", "Wire the settings screen"),
+  ]);
+  check("a pushed action can be broken down where it landed",
+    stepProgress(findByPath(grown, "year", ["y1", "a1"])).total === 1,
+    JSON.stringify(findByPath(grown, "year", ["y1", "a1"]).steps?.map((s) => s.title)));
+  check("...and its own parts are shown beside it, at six months",
+    childrenHere(findByPath(grown, "year", ["y1", "a1"]), "sixMonths").length === 1);
+  check("...and can be pushed on to three months",
+    shownTitles(push(grown, "year", ["y1", "a1", "b1"]), "threeMonths").join()
+      === "Wire the settings screen");
+
+  // Finishing the grandchild settles the whole chain upward.
+  const done = complete(grown, "year", ["y1", "a1", "b1"]);
+  check("finishing the last part finishes its heading",
+    findByPath(done, "year", ["y1", "a1"]).done === true);
+  check("...and that finishes the target above it",
+    done.horizons.year[0].done === true);
 }
 
 {
-  const g = goal({ today: [sub("t1", "Written straight onto today")] });
-  check("something written on today has nowhere to go back to",
-    putBack(g, "today", "t1") === g);
+  // Depth is not two: a plan can run the whole ladder down.
+  let g = goal({ year: [parent("y1", "Top", [sub("a", "One")])] });
+  g = push(g, "year", ["y1", "a"]);                       // six months
+  g = editParts(g, "year", ["y1", "a"], () => [sub("b", "Two")]);
+  g = push(g, "year", ["y1", "a", "b"]);                  // three months
+  g = editParts(g, "year", ["y1", "a", "b"], () => [sub("c", "Three")]);
+  g = push(g, "year", ["y1", "a", "b", "c"]);             // the month
+  check("a chain can run rung by rung down the whole ladder",
+    shownTitles(g, "oneMonth").join() === "Three",
+    JSON.stringify(placements(g).map((p) => `${p.sub.title}@${p.tier}`)));
+  check("...each rung showing the one above it as its tag",
+    shownAt(g, "oneMonth")[0].parent?.title === "Two");
+  check("...and every rung is somewhere different",
+    new Set(placements(g).map((p) => p.tier)).size === 4);
+}
+
+/* ------------------------------------- the week is not written into directly */
+
+{
+  const { HORIZONS } = await import("../src/lib/types.ts");
+  const week = HORIZONS.find((h) => h.key === "thisWeek");
+  check("the week offers no way to write a target into it",
+    week.addLabel === null, String(week.addLabel));
+  check("...but the month does", HORIZONS.find((h) => h.key === "oneMonth").addLabel !== null);
+  check("...and today still takes an action typed straight in",
+    HORIZONS.find((h) => h.key === "today").addLabel !== null);
 }
 
 /* --------------------------------------------- Rule B: three is a full day */
@@ -297,24 +189,25 @@ const titles = (list) => list.map((s) => s.title);
 }
 
 {
-  // A goal being worked on counts once, however many steps it breaks into —
-  // counting the steps would put a careful plan over the cap and a vague one
-  // under it, which is exactly backwards.
-  const g = takeIntoToday(
-    goal({ thisWeek: [stepped("w1", "Fix all the bugs",
-      [step("s1", "a"), step("s2", "b"), step("s3", "c"), step("s4", "d")])] }),
-    "thisWeek", "w1");
-  check("a target being worked on counts once, not once per action",
+  // A line on today counts once, however many parts it breaks into — counting
+  // parts would put a careful plan over the cap and a vague one under it.
+  const g = goal({
+    thisWeek: [{ ...parent("w1", "Fix all the bugs",
+      [sub("s1", "a"), sub("s2", "b"), sub("s3", "c")]), at: "today" }],
+  });
+  check("a line being worked on counts once, not once per part",
     picksOf(g).length === 1, String(dayLoad([g])));
-  check("...so a well-broken-down goal is not punished",
-    atCapacity([g]) === false);
-  check("...though today really does show four things to do",
-    todaysWork(g).length === 4);
+  check("...so a well-broken-down plan is not punished", atCapacity([g]) === false);
+  check("...and its parts are shown beneath it, not as separate picks",
+    childrenHere(g.horizons.thisWeek[0], "today").length === 3);
 }
 
 {
   const g = goal({ today: [sub("t1", "One"), sub("t2", "Two", true)] });
   check("finished work does not hold a slot", dayLoad([g]) === 1);
+  check("...and is what the wins drawer counts",
+    titles(winsToday(g)).join() === "Two");
+  check("...while the list is what is left", titles(openToday(g)).join() === "One");
 }
 
 /* --------------------------------------------- Rule A: one thing, or none */
@@ -326,35 +219,26 @@ const titles = (list) => list.map((s) => s.title);
   check("nothing is primary until it is named", primaryOf([a, b]) === null);
 
   const named = setPrimary([a, b], "g", "t1");
-  check("naming the day's one thing marks it",
-    primaryOf(named).sub.title === "One");
+  check("naming the day's one thing marks it", primaryOf(named).sub.title === "One");
 
   const moved = setPrimary(named, "g2", "t3");
-  check("naming a second clears the first",
-    primaryOf(moved).sub.title === "Three");
-  check("...even in another goal",
-    moved[0].horizons.today.every((s) => !s.primary));
+  check("naming a second clears the first", primaryOf(moved).sub.title === "Three");
+  check("...even in another goal", moved[0].horizons.today.every((s) => !s.primary));
 
-  const off = setPrimary(moved, "g2", "t3");
   check("pressing the one that holds it takes it back",
-    primaryOf(off) === null);
+    primaryOf(setPrimary(moved, "g2", "t3")) === null);
 }
 
 {
-  // The flag on a lending goal lives on the goal, in its own tier.
-  const g = takeIntoToday(
-    goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "a")])] }),
-    "thisWeek", "w1");
-  const named = setPrimary([g], "g", "w1");
-  check("a goal lending its steps can be the day's one thing",
-    primaryOf(named).sub.title === "Fix all the bugs");
-}
-
-{
-  const g = goal({ today: [{ ...sub("t1", "One"), primary: true }] });
-  const after = completeSub(g, "today", "t1");
-  check("finishing the primary releases the flag",
-    primaryOf([after]) === null);
+  // The flag reaches a line nested inside a target, not only a top-level one.
+  const g = goal({
+    oneMonth: [parent("m1", "Target", [{ ...sub("a1", "Action"), at: "today" }])],
+  });
+  const named = setPrimary([g], "g", "a1");
+  check("a pushed action can be the day's one thing",
+    primaryOf(named).sub.title === "Action");
+  const after = complete(named[0], "oneMonth", ["m1", "a1"]);
+  check("finishing it releases the flag", primaryOf([after]) === null);
 }
 
 /* ------------------------------------ Rule C: something you can honestly tick */
@@ -377,11 +261,24 @@ const titles = (list) => list.map((s) => s.title);
   check("activity, not output, is flagged",
     vague.every(isVague), vague.filter((t) => !isVague(t)).join(" / "));
   check("a real deliverable is left alone",
-    concrete.every((t) => !isVague(t)),
-    concrete.filter(isVague).join(" / "));
+    concrete.every((t) => !isVague(t)), concrete.filter(isVague).join(" / "));
   check("an empty line is not nagged about", isVague("") === false);
   check("the hint says what to do instead",
     /what will exist/i.test(VAGUE_HINT), VAGUE_HINT);
+}
+
+/* ------------------------------------------ nothing arrives on its own */
+
+{
+  const g = goal({
+    oneMonth: [sub("m1", "Admin dashboard")],
+    thisWeek: [],
+    today: [sub("t1", "Change the card")],
+  });
+  const after = complete(g, "today", ["t1"]);
+  check("clearing the day does not refill it", openToday(after).length === 0);
+  check("...and the month's work stays in the month",
+    titles(after.horizons.oneMonth).join() === "Admin dashboard");
 }
 
 /* ------------------------------------------------------- the turn of a day */
@@ -392,24 +289,29 @@ const titles = (list) => list.map((s) => s.title);
   const after = turnDay(g, "2026-03-02");
   check("unfinished work follows you into the new day",
     titles(openToday(after)).join() === "Unfinished");
-  check("...and says so",
-    openToday(after)[0].rolledOver === true);
-  check("finished work moves into the record",
-    titles(after.wins).join() === "Finished");
-  check("...and off the working list",
-    after.horizons.today.length === 1);
-  check("the new day does not fill itself",
-    openToday(after).length === 1 && after.horizons.thisWeek.length === 0);
+  check("...and says so", openToday(after)[0].rolledOver === true);
+  check("finished work moves into the record", titles(after.wins).join() === "Finished");
+  check("...and off the working list", after.horizons.today.length === 1);
+  check("the new day does not fill itself", openToday(after).length === 1);
 }
 
 {
-  const g = goal({ oneMonth: [sub("m1", "Next thing")],
-    today: [sub("t1", "Finished", true)] }, { lastReset: "2026-03-01" });
+  // A pushed action that was finished stops being scheduled and goes back to
+  // sitting under its target, struck through — it is not deleted from the plan.
+  const g = goal({
+    oneMonth: [parent("m1", "Target",
+      [{ ...sub("a1", "Done one", true), at: "today" },
+       { ...sub("a2", "Still open"), at: "today" }])],
+  }, { lastReset: "2026-03-01" });
   const after = turnDay(g, "2026-03-02");
-  check("a day finished to the last item still wakes up empty",
-    openToday(after).length === 0, titles(openToday(after)).join(" / "));
-  check("...with the month untouched, waiting to be chosen from",
-    titles(after.horizons.oneMonth).join() === "Next thing");
+  check("a finished pushed action leaves the day",
+    shownAt(after, "today").map((p) => p.sub.title).join() === "Still open",
+    JSON.stringify(shownAt(after, "today").map((p) => p.sub.title)));
+  check("...but stays in its target's plan",
+    findByPath(after, "oneMonth", ["m1", "a1"])?.title === "Done one");
+  check("...and is counted as a win", titles(after.wins).join() === "Done one");
+  check("the unfinished one is marked as carried",
+    findByPath(after, "oneMonth", ["m1", "a2"]).rolledOver === true);
 }
 
 {
@@ -429,8 +331,7 @@ const titles = (list) => list.map((s) => s.title);
   const two = turnDay(turnDay(g, "2026-03-02"), "2026-03-03");
   check("a second night does not badge it twice",
     two.horizons.today.filter((s) => s.rolledOver).length === 1);
-  check("...and does not archive what was never done",
-    (two.wins ?? []).length === 0);
+  check("...and does not archive what was never done", (two.wins ?? []).length === 0);
 }
 
 {
@@ -442,61 +343,70 @@ const titles = (list) => list.map((s) => s.title);
     turnAll(after, "2026-03-02") === after);
 }
 
-/* ------------------------------------------------------ moving by hand */
+/* ----------------------------------------------------------- editing anywhere */
 
 {
-  const g = goal({ oneMonth: [sub("m1", "Ship it")] });
-  const after = moveSub(g, "oneMonth", "thisWeek", "m1");
-  check("re-planning moves a line between tiers",
-    titles(after.horizons.thisWeek).join() === "Ship it");
-  check("...and it is not tagged as taken down",
-    after.horizons.thisWeek[0].promotedFrom === undefined);
-  check("moving somewhere it already is does nothing",
-    moveSub(g, "oneMonth", "oneMonth", "m1") === g);
+  const g = goal({ year: [parent("y1", "Top", [sub("a", "One"), sub("b", "Two")])] });
+
+  const renamed = editByPath(g, "year", ["y1", "b"], (s) => ({ ...s, title: "Second" }));
+  check("a nested line can be renamed",
+    findByPath(renamed, "year", ["y1", "b"]).title === "Second");
+  check("...without disturbing its sibling",
+    findByPath(renamed, "year", ["y1", "a"]).title === "One");
+
+  const gone = removeByPath(g, "year", ["y1", "a"]);
+  check("a nested line can be removed",
+    findByPath(gone, "year", ["y1", "a"]) === null);
+  check("...leaving the rest of the target intact",
+    gone.horizons.year[0].steps.length === 1);
+
+  const top = removeByPath(g, "year", ["y1"]);
+  check("...and so can a whole target", top.horizons.year.length === 0);
+
+  check("a path that leads nowhere finds nothing",
+    findByPath(g, "year", ["y1", "nope"]) === null);
 }
 
 {
-  // Moving to today is picking, so the stepped case has to behave the same way
-  // whichever door it comes through.
-  const g = goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "a")])] });
-  const after = moveSub(g, "thisWeek", "today", "w1");
-  check("moving a target with actions to today lends them instead",
-    isOn(after.horizons.thisWeek[0], "today") && after.horizons.today.length === 0);
-}
-
-/* ----------------------------------------------------------- the small stuff */
-
-{
-  const g = goal({ today: [sub("t1", "Done", true), sub("t2", "Not done")] });
-  check("today's wins are what was ticked", titles(winsToday(g)).join() === "Done");
-  check("...and the list is what is left", titles(openToday(g)).join() === "Not done");
+  // Removing the last unfinished part settles the heading, which is the rule
+  // that would otherwise leave a target open with nothing left to do in it.
+  const g = goal({ year: [parent("y1", "Top", [sub("a", "One", true), sub("b", "Two")])] });
+  const gone = removeByPath(g, "year", ["y1", "b"]);
+  check("removing the last open part finishes the heading",
+    gone.horizons.year[0].done === true);
 }
 
 {
-  const g = goal({ thisWeek: [sub("w1", "No steps")] });
-  check("a sub-goal with no steps has no progress",
-    stepProgress(g.horizons.thisWeek[0]) === null);
-
-  const one = editSteps(g, "thisWeek", "w1", (steps) => [...steps, step("s1", "a")]);
-  check("adding the first step gives it a count",
-    stepProgress(one.horizons.thisWeek[0]).total === 1);
-
-  const gone = editSteps(one, "thisWeek", "w1", () => []);
-  check("removing the last step gives the tick back",
-    stepProgress(gone.horizons.thisWeek[0]) === null);
+  const s = settle({ ...parent("w1", "x", [sub("s1", "a", true)]), primary: true });
+  check("finishing a line gives up the day's primary slot",
+    s.done === true && s.primary === undefined);
+  check("a line with no parts settles to itself",
+    settle(sub("x", "y")).done === false);
 }
 
 {
-  // Ticking a heading by hand means its parts are done too, or a finished line
-  // would sit above unfinished work.
-  const g = goal({ thisWeek: [stepped("w1", "Whole thing",
-    [step("s1", "a"), step("s2", "b")])] });
-  const after = completeSub(g, "thisWeek", "w1");
+  const g = goal({ thisWeek: [parent("w1", "Whole thing", [sub("s1", "a"), sub("s2", "b")])] });
+  const after = complete(g, "thisWeek", ["w1"]);
   check("ticking a heading ticks its parts",
     after.horizons.thisWeek[0].steps.every((t) => t.done));
-  const back = completeSub(after, "thisWeek", "w1");
   check("...and unticking it reopens them",
-    back.horizons.thisWeek[0].steps.every((t) => !t.done));
+    complete(after, "thisWeek", ["w1"]).horizons.thisWeek[0].steps.every((t) => !t.done));
+}
+
+{
+  const g = goal({
+    oneMonth: [parent("m1", "Target", [{ ...sub("a1", "Scheduled"), at: "thisWeek" }])],
+  });
+  const done = complete(g, "oneMonth", ["m1"]);
+  check("finishing a target un-schedules its parts",
+    shownAt(done, "thisWeek").length === 0,
+    JSON.stringify(shownAt(done, "thisWeek").map((p) => p.sub.title)));
+}
+
+{
+  const g = goal({ today: [sub("t1", "One"), sub("t2", "Two")] });
+  check("today's work is what today is showing",
+    todaysWork(g).map((p) => p.sub.title).join() === "One,Two");
 }
 
 console.log(bad === 0 ? "\nall good" : `\n${bad} failing`);
