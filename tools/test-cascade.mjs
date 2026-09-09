@@ -1,9 +1,12 @@
-// The goal cascade and the turn of the day, on their own.
+// The goal engine, on its own.
 //
-// These two rules move somebody's plan around without being asked to, so they
-// are the part of the engine that most needs to be right: a waterfall that
-// fires when it shouldn't quietly empties a year's thinking into this
-// afternoon, and a day turn that runs twice archives work that was never done.
+// The rule this file exists to defend is a negative one: nothing reaches Today
+// unless a person put it there. An earlier version of the engine promoted the
+// next action the moment the last was ticked, and the failure mode was quiet —
+// a year's thinking drains into one afternoon and nobody sees it happen. So the
+// tests below check the absence of that as carefully as they check the presence
+// of anything else, alongside the three rules that hold around the choice: one
+// primary, three at most, and a title you can honestly tick.
 //
 //   node tools/test-cascade.mjs
 //
@@ -12,15 +15,19 @@
 
 // Node strips the types itself, so the real module is the one under test —
 // no transpiled copy that might differ from what the app actually runs.
-const { cascade, completeSub, completeStep, editSteps, stepProgress,
-  todaysWork,
-  turnDay, turnAll, moveSub, winsToday, openToday } =
-  await import("../src/lib/cascade.ts");
+const {
+  DAILY_CAP, VAGUE_HINT,
+  activeSubs, atCapacity, completeStep, completeSub, dayLoad, editSteps,
+  isVague, moveSub, openToday, picksOf, primaryOf, putBack, setPrimary, settle,
+  stepProgress, takeIntoToday, todaysWork, turnAll, turnDay, winsToday,
+} = await import("../src/lib/cascade.ts");
 
 let bad = 0;
 const check = (n, ok, x) => { if (!ok) bad++; console.log(`${ok ? "PASS" : "FAIL"}  ${n}${x ? "  — " + x : ""}`); };
 
 const sub = (id, title, done = false) => ({ id, title, done });
+const stepped = (id, title, steps) => ({ id, title, done: false, steps });
+const step = (id, title, done = false) => ({ id, title, done });
 const goal = (horizons, extra = {}) => ({
   id: "g", title: "Get Innerly live", color: "blue",
   createdAt: "2026-01-01T00:00:00.000Z", order: 0,
@@ -32,368 +39,369 @@ const goal = (horizons, extra = {}) => ({
 });
 const titles = (list) => list.map((s) => s.title);
 
-/* ------------------------------------------------------------ the waterfall */
+/* ------------------------------------ nothing arrives on its own any more */
+
+{
+  const g = goal({
+    oneMonth: [sub("m1", "Admin dashboard")],
+    thisWeek: [sub("w1", "Fix wording", true)],
+    today: [sub("t1", "Change the card")],
+  });
+  const after = completeSub(g, "today", "t1");
+  check("clearing the day does not refill it",
+    openToday(after).length === 0, titles(openToday(after)).join(" / "));
+  check("...and does not move the month's work either",
+    titles(after.horizons.oneMonth).join() === "Admin dashboard",
+    titles(after.horizons.oneMonth).join(" / "));
+  check("...or the week's",
+    after.horizons.thisWeek.length === 1);
+}
 
 {
   const g = goal({ year: [sub("y1", "100,000 users")] });
-  const after = cascade(g);
-  check("a goal written only against next year is left alone",
-    after === g, JSON.stringify(titles(after.horizons.today)));
+  check("a goal written only against next year stays there",
+    openToday(g).length === 0 && g.horizons.year.length === 1);
 }
+
+{
+  // The one that used to happen on its own, now asked for.
+  const g = goal({ thisWeek: [sub("w1", "Fix the wording")] });
+  const after = takeIntoToday(g, "thisWeek", "w1");
+  check("taking something into today moves it",
+    titles(openToday(after)).join() === "Fix the wording");
+  check("...out of the tier it came from",
+    after.horizons.thisWeek.length === 0);
+  check("...tagged with where it came from",
+    openToday(after)[0].promotedFrom === "thisWeek");
+}
+
+{
+  const g = goal({ today: [sub("t1", "Already here")] });
+  check("today cannot take from itself",
+    takeIntoToday(g, "today", "t1") === g);
+}
+
+{
+  const g = goal({ thisWeek: [sub("w1", "Done already", true)] });
+  check("a finished sub-goal cannot be picked",
+    takeIntoToday(g, "thisWeek", "w1") === g);
+}
+
+{
+  const g = goal({ oneMonth: [sub("m1", "Ship the report")] });
+  const after = takeIntoToday(g, "oneMonth", "m1");
+  check("anything can be picked, not only the week",
+    titles(openToday(after)).join() === "Ship the report");
+  check("...and says it came from the month",
+    openToday(after)[0].promotedFrom === "oneMonth");
+}
+
+/* ------------------------------------------- a stepped goal lends, not moves */
 
 {
   const g = goal({
-    oneMonth: [sub("m1", "Admin dashboard"), sub("m2", "Rollover logic")],
-    thisWeek: [sub("w1", "Fix wording", true)],
+    thisWeek: [stepped("w1", "Fix all the bugs", [
+      step("s1", "Wrap long sentences"),
+      step("s2", "Green today's date"),
+    ])],
   });
-  const after = cascade(g);
-  check("finishing the week's work pulls the month's next action down",
-    titles(after.horizons.thisWeek).includes("Admin dashboard"),
-    titles(after.horizons.thisWeek).join(" / "));
-  check("...and it leaves the tier it came from",
-    !titles(after.horizons.oneMonth).includes("Admin dashboard"),
-    titles(after.horizons.oneMonth).join(" / "));
-  check("...taking only the top of the queue",
-    titles(after.horizons.oneMonth).join() === "Rollover logic",
-    titles(after.horizons.oneMonth).join(" / "));
-  check("...marked as having been dropped down",
-    after.horizons.thisWeek.find((s) => s.id === "m1").promotedFrom === "oneMonth");
-}
+  const after = takeIntoToday(g, "thisWeek", "w1");
+  check("a sub-goal with steps stays in its own tier",
+    after.horizons.thisWeek.length === 1 && after.horizons.today.length === 0);
+  check("...marked as the one being worked on",
+    after.horizons.thisWeek[0].active === true);
+  check("...and its open steps are what today shows",
+    todaysWork(after).map((w) => w.sub.title).join(" / ")
+      === "Wrap long sentences / Green today's date");
+  check("...each carrying the goal it belongs to",
+    todaysWork(after).every((w) => w.parent?.title === "Fix all the bugs"));
+  check("picking it twice changes nothing",
+    takeIntoToday(after, "thisWeek", "w1") === after);
 
-{
-  // Today and This Week both clear: one pass should carry the month's action
-  // the whole way, which is what makes it a waterfall rather than a step.
-  const g = goal({
-    oneMonth: [sub("m1", "Admin dashboard")],
-    thisWeek: [sub("w1", "Fix wording", true)],
-    today: [sub("t1", "Change the card", true)],
-  });
-  const after = cascade(g);
-  check("a cleared week and day carry the month's action all the way down",
-    titles(after.horizons.today).includes("Admin dashboard"),
-    titles(after.horizons.today).join(" / "));
-}
-
-{
-  const g = goal({
-    oneMonth: [sub("m1", "Admin dashboard")],
-    thisWeek: [sub("w1", "Fix wording")],
-  });
-  check("nothing moves while there is still work in the lower tier",
-    cascade(g) === g);
-}
-
-{
-  const g = goal({
-    oneMonth: [sub("m1", "Done already", true)],
-    thisWeek: [sub("w1", "Fix wording", true)],
-  });
-  check("a tier of finished work has nothing left to give",
-    cascade(g) === g);
-}
-
-/* ----------------------------------------------------------- ticking a thing */
-
-{
-  const g = goal({
-    oneMonth: [sub("m1", "Admin dashboard")],
-    thisWeek: [sub("w1", "Fix wording")],
-  });
-  const after = completeSub(g, "thisWeek", "w1");
-  check("ticking the last of a tier sets the cascade off",
-    titles(after.horizons.thisWeek).includes("Admin dashboard"),
-    titles(after.horizons.thisWeek).join(" / "));
-  check("...and the tick is dated", !!after.horizons.thisWeek.find((s) => s.id === "w1").completedAt);
-
-  const back = completeSub(after, "thisWeek", "w1");
-  check("un-ticking clears the date again",
-    back.horizons.thisWeek.find((s) => s.id === "w1").completedAt === undefined);
-}
-
-/* -------------------------------------------------------------- the day turn */
-
-{
-  const fresh = goal({ today: [sub("t1", "Something", false)] });
-  const first = turnDay(fresh, "2026-09-08");
-  check("a goal's first day turn only notes the date",
-    first.lastReset === "2026-09-08" &&
-      first.horizons.today[0].rolledOver === undefined,
-    "nothing written twenty minutes ago is marked as carried over");
-}
-
-{
-  const g = goal(
-    { today: [sub("t1", "Unfinished"), sub("t2", "Finished", true)] },
-    { lastReset: "2026-09-07" }
-  );
-  const after = turnDay(g, "2026-09-08");
-  check("what was not finished comes into the new day",
-    titles(after.horizons.today).join() === "Unfinished",
-    titles(after.horizons.today).join(" / "));
-  check("...wearing the badge that says so",
-    after.horizons.today[0].rolledOver === true);
-  check("what was finished goes to the wins",
-    titles(after.wins ?? []).join() === "Finished",
-    titles(after.wins ?? []).join(" / "));
-  check("...and is not left on the working list",
-    !titles(after.horizons.today).includes("Finished"));
-  check("the day is stamped", after.lastReset === "2026-09-08");
-
-  const again = turnDay(after, "2026-09-08");
-  check("turning the same day twice changes nothing", again === after);
-
-  const third = turnDay(after, "2026-09-09");
-  check("a second night does not double-badge what was already carried",
-    third.horizons.today[0].rolledOver === true &&
-      (third.wins ?? []).length === 1,
-    `${(third.wins ?? []).length} wins`);
-}
-
-{
-  // Clearing the day and sleeping on it should leave tomorrow with the next
-  // thing already waiting, rather than an empty board.
-  const g = goal(
-    {
-      thisWeek: [sub("w1", "Next week thing")],
-      today: [sub("t1", "All done", true)],
-    },
-    { lastReset: "2026-09-07" }
-  );
-  const after = turnDay(g, "2026-09-08");
-  check("a day finished clean wakes up with the next action waiting",
-    titles(after.horizons.today).join() === "Next week thing",
-    titles(after.horizons.today).join(" / "));
-}
-
-{
-  const days = turnAll(
-    [goal({ today: [sub("a", "One")] }, { lastReset: "2026-09-07" })],
-    "2026-09-08"
-  );
-  check("the whole board turns together", days[0].lastReset === "2026-09-08");
-  const same = [goal({}, { lastReset: "2026-09-08" })];
-  check("...and a board already up to date is left untouched",
-    turnAll(same, "2026-09-08") === same);
-}
-
-/* --------------------------------------------------------- moving one by hand */
-
-{
-  const g = goal({ oneMonth: [sub("m1", "Admin dashboard")] });
-  const after = moveSub(g, "oneMonth", "today", "m1");
-  check("a sub-action can be dragged down by hand",
-    titles(after.horizons.today).join() === "Admin dashboard" &&
-      after.horizons.oneMonth.length === 0);
-  check("...and is no longer marked as something the cascade did",
-    after.horizons.today[0].promotedFrom === undefined);
-  check("moving to where it already is does nothing",
-    moveSub(g, "oneMonth", "oneMonth", "m1") === g);
-  check("moving something that is not there does nothing",
-    moveSub(g, "oneMonth", "today", "nope") === g);
-}
-
-/* ------------------------------------------------------------- the day's list */
-
-{
-  const g = goal({ today: [sub("a", "Open"), sub("b", "Won", true)] });
-  check("the day shows what is left", titles(openToday(g)).join() === "Open");
-  check("...and counts what was won", titles(winsToday(g)).join() === "Won");
-}
-
-/* -------------------------------------------------------------- steps */
-
-const step = (id, title, done = false) => ({ id, title, done });
-
-{
-  const g = goal({
-    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [
-      step("p1", "Home page"), step("p2", "Daily plan page"),
-    ] }],
-  });
-
-  const one = completeStep(g, "thisWeek", "w1", "p1");
-  check("ticking one step leaves the heading open",
+  const one = completeStep(after, "thisWeek", "w1", "s1");
+  check("ticking a step leaves the goal open",
     one.horizons.thisWeek[0].done === false,
-    JSON.stringify(stepProgress(one.horizons.thisWeek[0])));
+    `${stepProgress(one.horizons.thisWeek[0]).done}/2`);
+  check("...and still on today",
+    one.horizons.thisWeek[0].active === true);
+  check("...with only what is left showing on today",
+    todaysWork(one).map((w) => w.sub.title).join() === "Green today's date");
 
-  const both = completeStep(one, "thisWeek", "w1", "p2");
-  check("ticking the last step finishes the heading",
+  const both = completeStep(one, "thisWeek", "w1", "s2");
+  check("ticking the last step finishes the goal",
     both.horizons.thisWeek[0].done === true);
-  check("...and dates it", !!both.horizons.thisWeek[0].completedAt);
-
-  const reopened = completeStep(both, "thisWeek", "w1", "p2");
-  check("reopening a step reopens the heading",
-    reopened.horizons.thisWeek[0].done === false);
-  check("...and clears its date",
-    reopened.horizons.thisWeek[0].completedAt === undefined);
+  check("...where it was written all along",
+    both.horizons.thisWeek.length === 1 && both.horizons.today.length === 0);
+  check("...and it stops asking anything of today",
+    todaysWork(both).length === 0 && activeSubs(both).length === 0);
+  check("...and nothing takes its place",
+    both.horizons.oneMonth.length === 0 && openToday(both).length === 0);
 }
 
 {
+  // Reopening a step reopens the heading, without also un-picking it.
   const g = goal({
-    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [
-      step("p1", "Home page"), step("p2", "Daily plan page"),
-    ] }],
+    thisWeek: [{ ...stepped("w1", "Fix all the bugs", [step("s1", "One", true)]),
+      done: true, active: undefined }],
   });
-  const ticked = completeSub(g, "thisWeek", "w1");
-  check("ticking the heading ticks everything under it",
-    ticked.horizons.thisWeek[0].steps.every((t) => t.done));
-  const back = completeSub(ticked, "thisWeek", "w1");
-  check("...and unticking it reopens them all",
+  const after = completeStep(g, "thisWeek", "w1", "s1");
+  check("reopening the last step reopens its heading",
+    after.horizons.thisWeek[0].done === false);
+}
+
+{
+  const s = settle({ ...stepped("w1", "x", [step("s1", "a", true)]), active: true, primary: true });
+  check("finishing a goal gives up the day's primary slot",
+    s.done === true && s.primary === undefined && s.active === undefined);
+}
+
+/* ---------------------------------------------------------- putting it back */
+
+{
+  const g = takeIntoToday(
+    goal({ thisWeek: [sub("w1", "Fix the wording")] }), "thisWeek", "w1");
+  const back = putBack(g, "today", "w1");
+  check("something taken down can go home",
+    titles(back.horizons.thisWeek).join() === "Fix the wording");
+  check("...leaving today empty",
+    back.horizons.today.length === 0);
+  check("...and losing the tag on the way",
+    back.horizons.thisWeek[0].promotedFrom === undefined);
+}
+
+{
+  const g = takeIntoToday(
+    goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "One")])] }),
+    "thisWeek", "w1");
+  const back = putBack(g, "thisWeek", "w1");
+  check("a lending goal can stop lending",
+    back.horizons.thisWeek[0].active === undefined);
+  check("...and today asks nothing again",
+    todaysWork(back).length === 0);
+  check("...without the goal itself moving",
+    back.horizons.thisWeek.length === 1);
+}
+
+{
+  const g = goal({ today: [sub("t1", "Written straight onto today")] });
+  check("something written on today has nowhere to go back to",
+    putBack(g, "today", "t1") === g);
+}
+
+/* --------------------------------------------- Rule B: three is a full day */
+
+{
+  check("the cap is three", DAILY_CAP === 3);
+
+  const a = goal({ today: [sub("t1", "One"), sub("t2", "Two")] });
+  const b = { ...goal({ today: [sub("t3", "Three")] }), id: "g2" };
+  check("the day is counted across every goal", dayLoad([a, b]) === 3);
+  check("...and three is full", atCapacity([a, b]) === true);
+  check("two is not full", atCapacity([a]) === false);
+}
+
+{
+  // A goal being worked on counts once, however many steps it breaks into —
+  // counting the steps would put a careful plan over the cap and a vague one
+  // under it, which is exactly backwards.
+  const g = takeIntoToday(
+    goal({ thisWeek: [stepped("w1", "Fix all the bugs",
+      [step("s1", "a"), step("s2", "b"), step("s3", "c"), step("s4", "d")])] }),
+    "thisWeek", "w1");
+  check("a goal being worked on counts once, not once per step",
+    picksOf(g).length === 1, String(dayLoad([g])));
+  check("...so a well-broken-down goal is not punished",
+    atCapacity([g]) === false);
+  check("...though today really does show four things to do",
+    todaysWork(g).length === 4);
+}
+
+{
+  const g = goal({ today: [sub("t1", "One"), sub("t2", "Two", true)] });
+  check("finished work does not hold a slot", dayLoad([g]) === 1);
+}
+
+/* --------------------------------------------- Rule A: one thing, or none */
+
+{
+  const a = goal({ today: [sub("t1", "One"), sub("t2", "Two")] });
+  const b = { ...goal({ today: [sub("t3", "Three")] }), id: "g2" };
+
+  check("nothing is primary until it is named", primaryOf([a, b]) === null);
+
+  const named = setPrimary([a, b], "g", "t1");
+  check("naming the day's one thing marks it",
+    primaryOf(named).sub.title === "One");
+
+  const moved = setPrimary(named, "g2", "t3");
+  check("naming a second clears the first",
+    primaryOf(moved).sub.title === "Three");
+  check("...even in another goal",
+    moved[0].horizons.today.every((s) => !s.primary));
+
+  const off = setPrimary(moved, "g2", "t3");
+  check("pressing the one that holds it takes it back",
+    primaryOf(off) === null);
+}
+
+{
+  // The flag on a lending goal lives on the goal, in its own tier.
+  const g = takeIntoToday(
+    goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "a")])] }),
+    "thisWeek", "w1");
+  const named = setPrimary([g], "g", "w1");
+  check("a goal lending its steps can be the day's one thing",
+    primaryOf(named).sub.title === "Fix all the bugs");
+}
+
+{
+  const g = goal({ today: [{ ...sub("t1", "One"), primary: true }] });
+  const after = completeSub(g, "today", "t1");
+  check("finishing the primary releases the flag",
+    primaryOf([after]) === null);
+}
+
+/* ------------------------------------ Rule C: something you can honestly tick */
+
+{
+  const vague = [
+    "Work on the UI", "working on onboarding", "Think about pricing",
+    "Focus on the launch", "Look at the numbers", "Continue the redesign",
+    "Keep going with tests", "Spend time on copy", "Try to write more",
+    "Improve the dashboard", "Sort out the emails", "Deal with feedback",
+    "Onboarding",
+  ];
+  const concrete = [
+    "Wrap long task sentences in the daily plan",
+    "Turn today's date green",
+    "Publish the pricing page",
+    "Reply to the three support emails",
+    "Review the launch checklist",
+  ];
+  check("activity, not output, is flagged",
+    vague.every(isVague), vague.filter((t) => !isVague(t)).join(" / "));
+  check("a real deliverable is left alone",
+    concrete.every((t) => !isVague(t)),
+    concrete.filter(isVague).join(" / "));
+  check("an empty line is not nagged about", isVague("") === false);
+  check("the hint says what to do instead",
+    /what will exist/i.test(VAGUE_HINT), VAGUE_HINT);
+}
+
+/* ------------------------------------------------------- the turn of a day */
+
+{
+  const g = goal({ today: [sub("t1", "Unfinished"), sub("t2", "Finished", true)] },
+    { lastReset: "2026-03-01" });
+  const after = turnDay(g, "2026-03-02");
+  check("unfinished work follows you into the new day",
+    titles(openToday(after)).join() === "Unfinished");
+  check("...and says so",
+    openToday(after)[0].rolledOver === true);
+  check("finished work moves into the record",
+    titles(after.wins).join() === "Finished");
+  check("...and off the working list",
+    after.horizons.today.length === 1);
+  check("the new day does not fill itself",
+    openToday(after).length === 1 && after.horizons.thisWeek.length === 0);
+}
+
+{
+  const g = goal({ oneMonth: [sub("m1", "Next thing")],
+    today: [sub("t1", "Finished", true)] }, { lastReset: "2026-03-01" });
+  const after = turnDay(g, "2026-03-02");
+  check("a day finished to the last item still wakes up empty",
+    openToday(after).length === 0, titles(openToday(after)).join(" / "));
+  check("...with the month untouched, waiting to be chosen from",
+    titles(after.horizons.oneMonth).join() === "Next thing");
+}
+
+{
+  const g = goal({ today: [sub("t1", "Written today")] });
+  const after = turnDay(g, "2026-03-02");
+  check("a goal's first day only stamps the date",
+    after.lastReset === "2026-03-02" && after.horizons.today[0].rolledOver === undefined);
+}
+
+{
+  const g = goal({ today: [sub("t1", "x", true)] }, { lastReset: "2026-03-02" });
+  check("the same day twice does nothing", turnDay(g, "2026-03-02") === g);
+}
+
+{
+  const g = goal({ today: [sub("t1", "Unfinished")] }, { lastReset: "2026-03-01" });
+  const two = turnDay(turnDay(g, "2026-03-02"), "2026-03-03");
+  check("a second night does not badge it twice",
+    two.horizons.today.filter((s) => s.rolledOver).length === 1);
+  check("...and does not archive what was never done",
+    (two.wins ?? []).length === 0);
+}
+
+{
+  const a = goal({ today: [sub("t1", "x", true)] }, { lastReset: "2026-03-01" });
+  const b = { ...goal({}, { lastReset: "2026-03-02" }), id: "g2" };
+  const after = turnAll([a, b], "2026-03-02");
+  check("the whole board turns together", after[0] !== a && after[1] === b);
+  check("...and an already-current board is left alone",
+    turnAll(after, "2026-03-02") === after);
+}
+
+/* ------------------------------------------------------ moving by hand */
+
+{
+  const g = goal({ oneMonth: [sub("m1", "Ship it")] });
+  const after = moveSub(g, "oneMonth", "thisWeek", "m1");
+  check("re-planning moves a line between tiers",
+    titles(after.horizons.thisWeek).join() === "Ship it");
+  check("...and it is not tagged as taken down",
+    after.horizons.thisWeek[0].promotedFrom === undefined);
+  check("moving somewhere it already is does nothing",
+    moveSub(g, "oneMonth", "oneMonth", "m1") === g);
+}
+
+{
+  // Moving to today is picking, so the stepped case has to behave the same way
+  // whichever door it comes through.
+  const g = goal({ thisWeek: [stepped("w1", "Fix all the bugs", [step("s1", "a")])] });
+  const after = moveSub(g, "thisWeek", "today", "w1");
+  check("moving a stepped goal to today lends it instead",
+    after.horizons.thisWeek[0].active === true && after.horizons.today.length === 0);
+}
+
+/* ----------------------------------------------------------- the small stuff */
+
+{
+  const g = goal({ today: [sub("t1", "Done", true), sub("t2", "Not done")] });
+  check("today's wins are what was ticked", titles(winsToday(g)).join() === "Done");
+  check("...and the list is what is left", titles(openToday(g)).join() === "Not done");
+}
+
+{
+  const g = goal({ thisWeek: [sub("w1", "No steps")] });
+  check("a sub-goal with no steps has no progress",
+    stepProgress(g.horizons.thisWeek[0]) === null);
+
+  const one = editSteps(g, "thisWeek", "w1", (steps) => [...steps, step("s1", "a")]);
+  check("adding the first step gives it a count",
+    stepProgress(one.horizons.thisWeek[0]).total === 1);
+
+  const gone = editSteps(one, "thisWeek", "w1", () => []);
+  check("removing the last step gives the tick back",
+    stepProgress(gone.horizons.thisWeek[0]) === null);
+}
+
+{
+  // Ticking a heading by hand means its parts are done too, or a finished line
+  // would sit above unfinished work.
+  const g = goal({ thisWeek: [stepped("w1", "Whole thing",
+    [step("s1", "a"), step("s2", "b")])] });
+  const after = completeSub(g, "thisWeek", "w1");
+  check("ticking a heading ticks its parts",
+    after.horizons.thisWeek[0].steps.every((t) => t.done));
+  const back = completeSub(after, "thisWeek", "w1");
+  check("...and unticking it reopens them",
     back.horizons.thisWeek[0].steps.every((t) => !t.done));
 }
 
-{
-  const g = goal({
-    oneMonth: [sub("m1", "Next thing")],
-    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [step("p1", "Home page")] }],
-  });
-  const after = completeStep(g, "thisWeek", "w1", "p1");
-  check("finishing a heading through its steps still sets the cascade off",
-    titles(after.horizons.thisWeek).includes("Next thing"),
-    titles(after.horizons.thisWeek).join(" / "));
-}
-
-{
-  const g = goal({ thisWeek: [sub("w1", "One clear thing")] });
-  check("a sub-goal with no steps reports no progress",
-    stepProgress(g.horizons.thisWeek[0]) === null);
-  check("...and is still ticked by hand",
-    completeSub(g, "thisWeek", "w1").horizons.thisWeek[0].done === true);
-}
-
-{
-  const withSteps = goal({
-    thisWeek: [{ ...sub("w1", "Change the wording"), steps: [step("p1", "Home")] }],
-  });
-  const added = editSteps(withSteps, "thisWeek", "w1", (steps) => [
-    ...steps, step("p2", "Daily plan"),
-  ]);
-  check("a step can be added", stepProgress(added.horizons.thisWeek[0]).total === 2);
-
-  const finished = completeStep(completeStep(added, "thisWeek", "w1", "p1"),
-    "thisWeek", "w1", "p2");
-  check("...and the heading follows the new count",
-    finished.horizons.thisWeek[0].done === true);
-
-  // Removing the last unfinished step should finish the heading, not strand it.
-  const two = editSteps(withSteps, "thisWeek", "w1", (steps) => [
-    ...steps, step("p2", "Daily plan"),
-  ]);
-  const oneDone = completeStep(two, "thisWeek", "w1", "p1");
-  const pruned = editSteps(oneDone, "thisWeek", "w1", (steps) =>
-    steps.filter((t) => t.id !== "p2")
-  );
-  check("removing the last unfinished step finishes the heading",
-    pruned.horizons.thisWeek[0].done === true,
-    JSON.stringify(stepProgress(pruned.horizons.thisWeek[0])));
-
-  const emptied = editSteps(oneDone, "thisWeek", "w1", () => []);
-  check("taking every step away hands the tick back",
-    emptied.horizons.thisWeek[0].done === false &&
-      stepProgress(emptied.horizons.thisWeek[0]) === null);
-}
-
-/* ------------------------------- a weekly goal lends its steps and stays put */
-
-{
-  const g = goal({
-    thisWeek: [{ ...sub("w1", "Fix all the bugs"), steps: [
-      step("p1", "Emoji access"), step("p2", "Green date"),
-    ] }],
-    today: [sub("t1", "Yesterday's leftover", true)],
-  });
-  const after = cascade(g);
-
-  check("the weekly goal stays in the week",
-    titles(after.horizons.thisWeek).join() === "Fix all the bugs",
-    titles(after.horizons.thisWeek).join(" / "));
-  check("...and is not copied into today",
-    !titles(after.horizons.today).includes("Fix all the bugs"),
-    titles(after.horizons.today).join(" / "));
-  check("...but is marked as the thing being worked on",
-    after.horizons.thisWeek[0].active === true);
-
-  const work = todaysWork(after).filter((w) => w.parent);
-  check("its steps are what today actually asks for",
-    work.map((w) => w.sub.title).join() === "Emoji access,Green date",
-    work.map((w) => w.sub.title).join(" / "));
-  check("...each naming the goal it belongs to",
-    work.every((w) => w.parent.title === "Fix all the bugs"));
-
-  // Nothing else should drop while its steps are still outstanding.
-  const held = goal({
-    oneMonth: [sub("m1", "Something later")],
-    thisWeek: [{ ...sub("w1", "Fix all the bugs"), steps: [step("p1", "One")], active: true }],
-  });
-  check("today is not refilled while borrowed steps are open",
-    cascade(held) === held);
-}
-
-{
-  const g = goal({
-    thisWeek: [{ ...sub("w1", "Fix all the bugs"), steps: [
-      step("p1", "Emoji access"), step("p2", "Green date"),
-    ], active: true }],
-  });
-
-  const one = completeStep(g, "thisWeek", "w1", "p1");
-  check("ticking one borrowed step leaves the weekly goal open",
-    one.horizons.thisWeek[0].done === false &&
-      one.horizons.thisWeek[0].active === true);
-  check("...and it still shows in the week",
-    titles(one.horizons.thisWeek).join() === "Fix all the bugs");
-
-  const both = completeStep(one, "thisWeek", "w1", "p2");
-  check("ticking the last one strikes the weekly goal through",
-    both.horizons.thisWeek[0].done === true);
-  check("...and it stops asking anything of today",
-    both.horizons.thisWeek[0].active === undefined &&
-      todaysWork(both).length === 0,
-    JSON.stringify(todaysWork(both).map((w) => w.sub.title)));
-  check("...while staying visible in the week it was written in",
-    titles(both.horizons.thisWeek).join() === "Fix all the bugs");
-}
-
-{
-  // A single action with no steps still moves, exactly as it used to.
-  const g = goal({
-    thisWeek: [sub("w1", "One clear action")],
-    today: [sub("t1", "Done", true)],
-  });
-  const after = cascade(g);
-  check("a sub-goal with no steps still comes down to today",
-    titles(after.horizons.today).includes("One clear action"),
-    titles(after.horizons.today).join(" / "));
-  check("...and leaves the week", after.horizons.thisWeek.length === 0);
-}
-
-{
-  // Finishing the week's goal should hand the turn to the next one, rather
-  // than leaving an empty day and a queue that never starts.
-  const g = goal({
-    thisWeek: [
-      { ...sub("w1", "Fix all the bugs"), steps: [step("p1", "One")], active: true },
-      { ...sub("w2", "Write the copy"), steps: [step("p2", "Home page")] },
-    ],
-  });
-  const after = completeStep(g, "thisWeek", "w1", "p1");
-  check("the next weekly goal takes its turn once the first is done",
-    after.horizons.thisWeek[1].active === true,
-    JSON.stringify(after.horizons.thisWeek.map((x) => [x.title, x.done, x.active])));
-  check("...and the finished one is struck through, not removed",
-    after.horizons.thisWeek[0].done === true &&
-      titles(after.horizons.thisWeek).length === 2);
-
-  // Reopening it makes it an open weekly goal again, but does not take the
-  // turn back from the one that has already started.
-  const undone = completeStep(after, "thisWeek", "w1", "p1");
-  check("reopening it makes it open again",
-    undone.horizons.thisWeek[0].done === false);
-  check("...without snatching the turn back from the one now under way",
-    undone.horizons.thisWeek[1].active === true &&
-      undone.horizons.thisWeek[0].active !== true,
-    JSON.stringify(undone.horizons.thisWeek.map((x) => [x.title, x.active])));
-}
-
-console.log(bad ? `\n${bad} failing` : "\nall good");
-process.exit(bad ? 1 : 0);
+console.log(bad === 0 ? "\nall good" : `\n${bad} failing`);
+process.exit(bad === 0 ? 0 : 1);

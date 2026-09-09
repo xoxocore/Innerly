@@ -27,6 +27,7 @@ import {
   type GoalColor,
   type Horizon,
 } from "@/lib/types";
+import { dayLoad, setPrimary } from "@/lib/cascade";
 import { useApp } from "@/state/app-context";
 import { useDayTasks, useDayTurn, useGoals, uid } from "@/state/use-data";
 import { useTaskDays } from "@/state/use-task-days";
@@ -279,6 +280,7 @@ export function DailyPlan() {
 
   const ordered = [...goals].sort((a, b) => a.order - b.order);
   const goal = goals.find((g) => g.id === selectedId) ?? null;
+  const load = dayLoad(goals);
 
   const updateGoal = (g: Goal) =>
     setGoals((prev) => prev.map((x) => (x.id === g.id ? g : x)));
@@ -377,8 +379,14 @@ export function DailyPlan() {
       <div>
         <GoalThread
           goal={goal}
+          // The cap is the person's, not this goal's — three things spread over
+          // three goals is still a full day, so the count comes from all of them.
+          dayLoad={load}
           onBack={() => setSelectedId(null)}
           onUpdate={updateGoal}
+          onPrimary={(subId) =>
+            setGoals((prev) => setPrimary(prev, goal.id, subId))
+          }
           onDelete={() => deleteGoal(goal.id)}
         />
       </div>
