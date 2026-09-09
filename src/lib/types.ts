@@ -39,17 +39,27 @@ export type Horizon =
   | "today";
 
 /**
- * One piece of a sub-goal.
+ * One action under a target.
  *
- * "Change the wording in the interface" is a thing you can tick, but it is
- * really the home page and then the daily plan page — and a list that cannot
- * say so makes you hold the parts in your head. Steps are always optional: a
- * sub-goal that is genuinely one action stays one line.
+ * "Finalise the user interface" is a thing you can tick, but it is really
+ * notifications, then the last features, then the app tour — and a list that
+ * cannot say so makes you hold the parts in your head. Actions are always
+ * optional: a target that is genuinely one action stays one line.
  */
 export type Step = {
   id: string;
   title: string;
   done: boolean;
+  /**
+   * The nearer tier this action has been pushed down to, if any.
+   *
+   * The action does not leave its target — the target is the plan and stays
+   * written where it was written, its count climbing as its actions are done.
+   * This only says where the doing of it is scheduled, so the week can show
+   * "Notifications + stickers" tagged with the target it serves while the
+   * target itself sits in the month.
+   */
+  at?: Horizon;
 };
 
 export type SubGoal = {
@@ -63,9 +73,9 @@ export type SubGoal = {
   /** Optional. A sub-goal without them behaves as it always did. */
   steps?: Step[];
   /**
-   * Being worked on today: its open steps appear on the Today list, tagged
-   * with this sub-goal's name, while the sub-goal itself stays where it was
-   * written. Only ever set on a sub-goal that has steps.
+   * Legacy flag: "all of this target's open actions are on Today". Kept only
+   * so goals saved before actions could be placed individually still load —
+   * normalizeGoal turns it into `at: "today"` on each of them and drops it.
    */
   active?: boolean;
   /** When it was ticked — what the completed log is ordered and dated by. */
@@ -124,31 +134,31 @@ export const HORIZONS: {
   {
     key: "year",
     label: "1 Year",
-    addLabel: "Add sub-goal",
+    addLabel: "Add target",
     prompt: "Where do you want to be in a year?",
   },
   {
     key: "sixMonths",
     label: "6 Months",
-    addLabel: "Add sub-goal",
+    addLabel: "Add target",
     prompt: "What has to be true in 6 months for the year to happen?",
   },
   {
     key: "threeMonths",
     label: "3 Months",
-    addLabel: "Add sub-goal",
+    addLabel: "Add target",
     prompt: "And in 3 months, for that to happen?",
   },
   {
     key: "oneMonth",
     label: "This Month",
-    addLabel: "Add sub-goal",
+    addLabel: "Add target",
     prompt: "What has to be done this month for that?",
   },
   {
     key: "thisWeek",
     label: "Weekly Goal",
-    addLabel: "Add sub-goal",
+    addLabel: "Add target",
     prompt: "What has to be done this week for that?",
   },
   {
@@ -286,11 +296,10 @@ const rid = () =>
 function normSub(s: unknown): SubGoal | null {
   if (!s || typeof s !== "object") return null;
   const o = s as Record<string, unknown>;
-  return {
+  const sub: SubGoal = {
     id: typeof o.id === "string" ? o.id : rid(),
     title: typeof o.title === "string" ? o.title : "",
     done: !!o.done,
-    active: o.active === true ? true : undefined,
     steps: Array.isArray(o.steps)
       ? (o.steps.map(normStep).filter(Boolean) as Step[])
       : undefined,
@@ -299,6 +308,13 @@ function normSub(s: unknown): SubGoal | null {
     promotedFrom: isHorizon(o.promotedFrom) ? o.promotedFrom : undefined,
     primary: o.primary === true ? true : undefined,
   };
+
+  // A target saved when the whole thing went to Today at once. Its actions are
+  // placed one by one now, so the old flag becomes what it always meant.
+  if (o.active === true && sub.steps?.length && !sub.steps.some((t) => t.at)) {
+    sub.steps = sub.steps.map((t) => (t.done ? t : { ...t, at: "today" }));
+  }
+  return sub;
 }
 
 function normStep(s: unknown): Step | null {
@@ -308,6 +324,7 @@ function normStep(s: unknown): Step | null {
     id: typeof o.id === "string" ? o.id : rid(),
     title: typeof o.title === "string" ? o.title : "",
     done: !!o.done,
+    at: isHorizon(o.at) ? o.at : undefined,
   };
 }
 

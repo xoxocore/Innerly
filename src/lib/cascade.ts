@@ -40,27 +40,61 @@ const hasSteps = (s: SubGoal) => (s.steps?.length ?? 0) > 0;
 
 const HORIZON_KEYS = HORIZONS.map((h) => h.key);
 
+/** One action, shown in a nearer tier than the target that owns it. */
+export type Borrowed = {
+  /** The action itself. Ticking it is ticking it inside its target. */
+  step: Step;
+  /** The target it belongs to, and where that target is written. */
+  parent: SubGoal;
+  parentHorizon: Horizon;
+};
+
 /**
- * The sub-goals whose steps are on today's list.
+ * The actions scheduled into one tier from targets written further out.
  *
- * A weekly goal broken into steps does not leave the week when it is picked.
- * It stays written where it was written — that is the plan, and watching the
- * plan empty itself is not the same as making progress — and only its steps
- * come down to be done. It is finished when they are, at which point it is
- * struck through in the week where it has been sitting all along.
+ * A target broken into actions does not travel. It stays written where it was
+ * written — that is the plan, and watching the plan empty itself is not the
+ * same as making progress — and its actions are scheduled down one at a time.
+ * "Finalise the user interface" sits in the month with its count climbing,
+ * while "Notifications + stickers" is on this week, tagged with the target it
+ * is in service of. The target is struck through when its actions are done, in
+ * the month where it has been sitting all along.
  */
-export function activeSubs(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
-  const out: { sub: SubGoal; horizon: Horizon }[] = [];
+export function borrowedAt(goal: Goal, horizon: Horizon): Borrowed[] {
+  const out: Borrowed[] = [];
   for (const key of HORIZON_KEYS) {
-    if (key === "today") continue;
-    for (const s of goal.horizons[key]) {
-      if (s.active && !s.done && hasSteps(s)) out.push({ sub: s, horizon: key });
+    if (key === horizon) continue;
+    for (const parent of goal.horizons[key]) {
+      if (parent.done) continue;
+      for (const step of parent.steps ?? []) {
+        if (!step.done && step.at === horizon) {
+          out.push({ step, parent, parentHorizon: key });
+        }
+      }
     }
   }
   return out;
 }
 
-/** Everything today asks of you: its own actions, plus any borrowed steps. */
+/** The targets currently lending an action to somewhere nearer. */
+export function lentSubs(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
+  const out: { sub: SubGoal; horizon: Horizon }[] = [];
+  for (const key of HORIZON_KEYS) {
+    for (const s of goal.horizons[key]) {
+      if (!s.done && (s.steps ?? []).some((t) => !t.done && t.at)) {
+        out.push({ sub: s, horizon: key });
+      }
+    }
+  }
+  return out;
+}
+
+/** Whether any of a target's open actions are scheduled onto a given tier. */
+export function isOn(sub: SubGoal, horizon: Horizon): boolean {
+  return (sub.steps ?? []).some((t) => !t.done && t.at === horizon);
+}
+
+/** Everything today asks of you: its own actions, plus any borrowed ones. */
 export function todaysWork(goal: Goal): {
   sub: SubGoal;
   horizon: Horizon;
@@ -71,18 +105,91 @@ export function todaysWork(goal: Goal): {
     .filter((s) => !s.done)
     .map((s) => ({ sub: s, horizon: "today" as Horizon }));
 
-  const borrowed = activeSubs(goal).flatMap(({ sub, horizon }) =>
-    (sub.steps ?? [])
-      .filter((t) => !t.done)
-      .map((step) => ({
-        sub: { id: step.id, title: step.title, done: step.done },
-        horizon,
-        step,
-        parent: sub,
-      }))
-  );
+  const borrowed = borrowedAt(goal, "today").map(({ step, parent, parentHorizon }) => ({
+    sub: { id: step.id, title: step.title, done: step.done },
+    horizon: parentHorizon,
+    step,
+    parent,
+  }));
 
   return [...own, ...borrowed];
+}
+
+/** The tier one closer than this one, or null at Today. */
+export function nearer(h: Horizon): Horizon | null {
+  const i = HORIZON_KEYS.indexOf(h);
+  return i >= 0 && i < HORIZON_KEYS.length - 1 ? HORIZON_KEYS[i + 1] : null;
+}
+
+/** Where an action currently sits: where it was pushed to, or its target's tier. */
+export function stepAt(step: Step, parentHorizon: Horizon): Horizon {
+  return step.at ?? parentHorizon;
+}
+
+/**
+ * Push one action a tier closer, leaving its target where it is.
+ *
+ * This is the arrow on an action's own row, and it is how a month's target
+ * turns into this week's work without the target itself pretending to be a
+ * weekly one. Nothing is copied: the line the week shows is the same object
+ * the target counts, so ticking it there moves the target's progress.
+ */
+export function pushStep(
+  goal: Goal,
+  horizon: Horizon,
+  subId: string,
+  stepId: string,
+  to?: Horizon
+): Goal {
+  const parent = goal.horizons[horizon].find((s) => s.id === subId);
+  const step = parent?.steps?.find((t) => t.id === stepId);
+  if (!parent || !step || step.done) return goal;
+
+  const target = to ?? nearer(stepAt(step, horizon));
+  if (!target || target === stepAt(step, horizon)) return goal;
+
+  return {
+    ...goal,
+    horizons: {
+      ...goal.horizons,
+      [horizon]: goal.horizons[horizon].map((s) =>
+        s.id !== subId
+          ? s
+          : {
+              ...s,
+              steps: s.steps?.map((t) => (t.id === stepId ? { ...t, at: target } : t)),
+            },
+      ),
+    },
+  };
+}
+
+/** Send an action back to its target — the other half of pushing it down. */
+export function pullStep(
+  goal: Goal,
+  horizon: Horizon,
+  subId: string,
+  stepId: string
+): Goal {
+  const parent = goal.horizons[horizon].find((s) => s.id === subId);
+  if (!parent?.steps?.some((t) => t.id === stepId && t.at)) return goal;
+
+  return {
+    ...goal,
+    horizons: {
+      ...goal.horizons,
+      [horizon]: goal.horizons[horizon].map((s) =>
+        s.id !== subId
+          ? s
+          : {
+              ...s,
+              steps: s.steps?.map((t) =>
+                t.id === stepId ? { ...t, at: undefined } : t
+              ),
+            },
+      ),
+    },
+  };
 }
 
 /* ------------------------------------------------------------- the picks */
@@ -96,9 +203,16 @@ export function todaysWork(goal: Goal): {
  * exactly backwards.
  */
 export function picksOf(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
+  const lending: { sub: SubGoal; horizon: Horizon }[] = [];
+  for (const key of HORIZON_KEYS) {
+    if (key === "today") continue;
+    for (const sub of goal.horizons[key]) {
+      if (!sub.done && isOn(sub, "today")) lending.push({ sub, horizon: key });
+    }
+  }
   return [
     ...open(goal.horizons.today).map((sub) => ({ sub, horizon: "today" as Horizon })),
-    ...activeSubs(goal),
+    ...lending,
   ];
 }
 
@@ -127,14 +241,24 @@ export function takeIntoToday(goal: Goal, from: Horizon, id: string): Goal {
   const sub = goal.horizons[from].find((s) => s.id === id);
   if (!sub || sub.done) return goal;
 
+  // A target with actions sends them all down and stays where it was written.
+  // The per-action arrow is the finer version of this; this is the whole
+  // target at once, which is what pressing Today on its own row means.
   if (hasSteps(sub)) {
-    if (sub.active) return goal;
+    if (isOn(sub, "today")) return goal;
     return {
       ...goal,
       horizons: {
         ...goal.horizons,
         [from]: goal.horizons[from].map((s) =>
-          s.id === id ? { ...s, active: true } : s
+          s.id === id
+            ? {
+                ...s,
+                steps: s.steps?.map((t) =>
+                  t.done ? t : { ...t, at: "today" as Horizon }
+                ),
+              }
+            : s
         ),
       },
     };
@@ -161,15 +285,23 @@ export function putBack(goal: Goal, horizon: Horizon, id: string): Goal {
   const sub = goal.horizons[horizon].find((s) => s.id === id);
   if (!sub) return goal;
 
-  // Borrowed steps: the sub-goal never left, so this only stops it lending.
+  // A lending target never left, so this only calls its actions home.
   if (horizon !== "today") {
-    if (!sub.active) return goal;
+    if (!isOn(sub, "today")) return goal;
     return {
       ...goal,
       horizons: {
         ...goal.horizons,
         [horizon]: goal.horizons[horizon].map((s) =>
-          s.id === id ? { ...s, active: undefined, primary: undefined } : s
+          s.id === id
+            ? {
+                ...s,
+                primary: undefined,
+                steps: s.steps?.map((t) =>
+                  t.at === "today" ? { ...t, at: undefined } : t
+                ),
+              }
+            : s
         ),
       },
     };
@@ -307,9 +439,8 @@ export function settle(sub: SubGoal): SubGoal {
     done,
     completedAt: done ? new Date().toISOString() : undefined,
     // Finished work is not work in progress. The line stays where it is,
-    // struck through, but it stops asking anything of today and gives up the
-    // day's one primary slot rather than holding it.
-    active: done ? undefined : sub.active,
+    // struck through, but it stops asking anything of any tier and gives up
+    // the day's one primary slot rather than holding it.
     primary: done ? undefined : sub.primary,
   };
 }
@@ -323,12 +454,11 @@ export function completeSub(goal: Goal, horizon: Horizon, id: string): Goal {
       ...s,
       done,
       completedAt: done ? new Date().toISOString() : undefined,
-      active: done ? undefined : s.active,
       primary: done ? undefined : s.primary,
-      // Ticking a heading means its parts are done, and unticking it means
-      // they are not. Leaving the steps behind would show a finished line
-      // sitting above unfinished work.
-      steps: s.steps?.map((t) => ({ ...t, done })),
+      // Ticking a target means its actions are done, and unticking it means
+      // they are not. Leaving them behind would show a finished line sitting
+      // above unfinished work — and a finished action is scheduled nowhere.
+      steps: s.steps?.map((t) => ({ ...t, done, at: done ? undefined : t.at })),
     };
   });
   return { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
