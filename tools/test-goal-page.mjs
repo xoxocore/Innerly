@@ -30,12 +30,49 @@ const mkUser = () => ({
 let bad = 0;
 const check = (n, ok, x) => { if (!ok) bad++; console.log(`${ok ? "PASS" : "FAIL"}  ${n}${x ? "  — " + x : ""}`); };
 
-/** The tick beside one named action, wherever in the thread it sits. */
-const tickFor = (p, title) =>
-  p
-    .locator("li")
-    .filter({ has: p.locator(`input[value="${title}"]`) })
-    .getByRole("button", { name: "Mark complete" });
+/**
+ * One row's own controls, by the id of the line it draws.
+ *
+ * Its own, and not its children's: a row contains the rows beneath it, so a
+ * lookup scoped to the whole row finds their buttons too — a strict-mode
+ * violation at best and the wrong button at worst.
+ */
+const ctl = (p, id) => p.locator(`[data-row="${id}"] > div`).first();
+
+/** The tick beside one named line, wherever in the thread it sits. */
+const tickFor = (p, id) => ctl(p, id).getByRole("button", { name: "Mark complete" });
+
+/** The goal as it is actually stored, which is the only honest witness. */
+const stored = (p) =>
+  p.evaluate(() => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons);
+
+/** Every line in a goal, flattened, so a test can find one at any depth. */
+const flat = async (p) =>
+  Object.entries(await stored(p)).flatMap(([tier, list]) => {
+    const out = [];
+    const walk = (l, home) => l.forEach((s) => {
+      out.push({ ...s, home });
+      if (s.steps) walk(s.steps, home);
+    });
+    walk(list, tier);
+    return out;
+  });
+
+const line = async (p, id) => (await flat(p)).find((s) => s.id === id);
+
+/**
+ * The titles shown in one tier.
+ *
+ * Titles are editable fields, so their words are values rather than text —
+ * innerText cannot see a single one of them, and an assertion that reads the
+ * card's text will quietly pass or fail for the wrong reason.
+ */
+const titlesIn = (p, tier) =>
+  p.locator(`[data-tier=${tier}] input`).evaluateAll((els) => els.map((e) => e.value));
+
+/** The button that adds an action to one named line. */
+const addTo = (p, title) =>
+  p.getByRole("button", { name: `Add an action to "${title}"` });
 
 const GOAL = {
   id: "goal-under-test",
@@ -48,7 +85,13 @@ const GOAL = {
   horizons: {
     year: [{ id: "s1", title: "Get 100,000 active users to Innerly", done: false }],
     sixMonths: [{ id: "s2", title: "Get 20,000 active users to Innerly", done: false }],
-    threeMonths: [], oneMonth: [],
+    threeMonths: [],
+    oneMonth: [
+      { id: "m1", title: "Finalise user Interface", done: false, steps: [
+        { id: "a1", title: "Notifications and stickers", done: false },
+        { id: "a2", title: "Final features", done: false },
+      ] },
+    ],
     thisWeek: [{ id: "w1", title: "Fix the wording in the UI", done: false }],
     today: [
       { id: "t1", title: "Change the review card to white", done: false },
@@ -234,8 +277,6 @@ async function openGoal(p) {
   const { p, errs } = await open();
   await openGoal(p);
 
-  // Sub-actions are editable fields, so their words are values rather than
-  // text — innerText cannot see a single one of them.
   const lines = () =>
     p.locator("main input").evaluateAll((els) => els.map((e) => e.value));
 
@@ -243,11 +284,9 @@ async function openGoal(p) {
   check("yesterday's unfinished action came into today",
     (await lines()).includes("Change the review card to white"),
     (await lines()).join(" / "));
-  check("...saying that it was carried", /Rolled over/i.test(body),
-    body.split("\n").find((l) => /Rolled/i.test(l)) ?? "");
+  check("...saying that it was carried", /Rolled over/i.test(body));
   check("yesterday's finished action is off the working list",
-    !(await lines()).includes("Innerly logo recreation"),
-    (await lines()).join(" / "));
+    !(await lines()).includes("Innerly logo recreation"));
 
   const kept = await p.evaluate(
     () => JSON.parse(localStorage.getItem("innerly:goals"))[0].wins ?? []
@@ -260,7 +299,7 @@ async function openGoal(p) {
   await p.close();
 }
 
-/* ------------------------------------------------------- today's own wins fold away */
+/* --------------------------------------------- today's own wins fold away */
 {
   const { p, errs } = await open();
   await openGoal(p);
@@ -270,7 +309,7 @@ async function openGoal(p) {
   check("the drawer is not there while nothing has been finished today",
     (await p.getByRole("button", { name: /Completed wins/i }).count()) === 0);
 
-  await tickFor(p, "Change the review card to white").click();
+  await tickFor(p, "t1").click();
   await p.waitForTimeout(800);
 
   check("finishing something takes it off the working list",
@@ -298,96 +337,219 @@ async function openGoal(p) {
   const { p, errs } = await open();
   await openGoal(p);
 
-  // Finish the last thing left in Today. Under the old engine This Week's
-  // action dropped in by itself; the whole point of the rebuild is that it
-  // does not, because choosing is the part a person is supposed to do.
-  await tickFor(p, "Change the review card to white").click();
+  // Under the old engine the week's action dropped in by itself when the day
+  // cleared. The whole point of the rebuild is that it does not.
+  await tickFor(p, "t1").click();
   await p.waitForTimeout(900);
 
-  // Checked against what was stored, not against the page: "Fix the wording"
-  // is on screen either way, so reading the page could never tell whether it
-  // had actually moved.
-  const stored = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
+  const h = await stored(p);
   check("clearing today leaves today empty",
-    stored.today.filter((s) => !s.done).length === 0,
-    JSON.stringify(stored.today.filter((s) => !s.done).map((s) => s.title)));
-  check("...and the week's work stays in the week",
-    stored.thisWeek.some((s) => s.id === "w1"),
-    JSON.stringify(stored.thisWeek.map((s) => s.id)));
-  check("...and the year's stays a year away",
-    stored.year.some((s) => s.id === "s1"));
+    h.today.filter((s) => !s.done).length === 0,
+    JSON.stringify(h.today.filter((s) => !s.done).map((s) => s.title)));
+  check("...and the week's work stays in the week", h.thisWeek.some((s) => s.id === "w1"));
+  check("...and the year's stays a year away", h.year.some((s) => s.id === "s1"));
 
   const after = await p.locator("main").innerText();
   check("an empty day asks the question instead of answering it",
-    /which one thing today makes the rest easier/i.test(after),
-    after.split("\n").find((l) => /one thing/i.test(l)) ?? "");
-  check("...and the count says the day is empty", /0 \/ 3/.test(after),
-    after.split("\n").find((l) => /\/ 3/.test(l)) ?? "");
+    /which one thing today makes the rest easier/i.test(after));
+  check("...and the count says the day is empty", /0 \/ 3/.test(after));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }
 
-/* --------------------------------------------------- taking one down by hand */
+/* ------------------------------------------------- one rung, never a leap */
 {
   const { p, errs } = await open();
   await openGoal(p);
 
-  const take = p.getByRole("button", { name: /Take .* into today/ });
-  check("a longer-horizon action offers to come down", (await take.count()) > 0,
-    `${await take.count()} offered`);
-  check("...but Today itself offers nothing lower",
-    (await take.count()) < (await p.locator("input[value]").count()));
+  // The rule the whole page is built on: the arrow on a line offers the tier
+  // immediately below it and no other. A year's target cannot reach today.
+  const arrow = (id) => ctl(p, id).getByRole("button", { name: /^Push /});
 
-  await take.first().click();
-  await p.waitForTimeout(700);
-  const moved = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  check("pressing it takes the action into today",
-    moved.today.some((s) => s.id === "s1"),
-    JSON.stringify(moved.today.map((s) => s.id)));
-  check("...and out of where it was", !moved.year.some((s) => s.id === "s1"));
-  check("...tagged with the tier it was drawn from",
-    moved.today.find((s) => s.id === "s1").promotedFrom === "year");
+  check("a year's target offers six months",
+    /6 Months/.test(await arrow("s1").innerText()),
+    await arrow("s1").innerText());
+  check("a six-month target offers three months",
+    /3 Months/.test(await arrow("s2").innerText()),
+    await arrow("s2").innerText());
+  check("a month's target offers the week",
+    /Weekly Goal/.test(await arrow("m1").innerText()),
+    await arrow("m1").innerText());
+  check("a week's target offers today",
+    /Today/.test(await arrow("w1").innerText()),
+    await arrow("w1").innerText());
+  check("and nothing on today offers anything lower",
+    (await ctl(p, "t1").getByRole("button", { name: /^Push / }).count()) === 0);
 
-  const body = await p.locator("main").innerText();
-  check("...and the tag is on screen, next to the doing", /1 YEAR/i.test(body));
+  check("no target anywhere offers to jump straight to today",
+    (await p.getByRole("button", { name: /Push .* to Today/ }).count()) === 1,
+    `${await p.getByRole("button", { name: /Push .* to Today/ }).count()} offered`);
 
-  // And back again: a choice you cannot reverse is not a choice.
-  await p.getByRole("button", { name: /Put .* back/ }).first().click();
-  await p.waitForTimeout(700);
-  const back = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  check("it can be put back where it came from",
-    back.year.some((s) => s.id === "s1") && !back.today.some((s) => s.id === "s1"),
-    JSON.stringify({ year: back.year.length, today: back.today.length }));
+  // Press it, and it goes exactly one rung.
+  await arrow("s1").click();
+  await p.waitForTimeout(800);
+  check("pressing it moves the line one rung",
+    (await line(p, "s1")).at === "sixMonths", String((await line(p, "s1")).at));
+  check("...and it is drawn in that tier",
+    (await titlesIn(p, "sixMonths")).includes("Get 100,000 active users to Innerly"),
+    JSON.stringify(await titlesIn(p, "sixMonths")));
+  check("...and today is no closer to holding it",
+    !(await titlesIn(p, "today")).some((t) => /100,000/.test(t)),
+    JSON.stringify(await titlesIn(p, "today")));
+
+  await ctl(p, "s1").getByRole("button", { name: /^Push / }).click();
+  await p.waitForTimeout(800);
+  check("pressing again moves it one more rung",
+    (await line(p, "s1")).at === "threeMonths", String((await line(p, "s1")).at));
+
+  await ctl(p, "s1").getByRole("button", { name: /Send .* back a tier/ }).click();
+  await p.waitForTimeout(800);
+  check("sending it back moves it back one rung, not all the way",
+    (await line(p, "s1")).at === "sixMonths", String((await line(p, "s1")).at));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }
 
-/* --------------------------------------------- dragging one down onto Today */
+/* ------------------- an action pushed down, with its target's name on it */
 {
   const { p, errs } = await open();
   await openGoal(p);
 
-  // The other way to pick, and the one a hand reaches for first: take hold of
-  // the row and put it on the day. Driven as a real pointer, because a drag
-  // that only works when a test calls the handler directly is not a drag.
-  const row = p.locator("li").filter({
-    has: p.locator('input[value="Fix the wording in the UI"]'),
+  const month = p.locator("[data-tier=oneMonth]");
+  check("the target counts its actions", /0\/2/.test(await ctl(p, "m1").innerText()),
+    (await ctl(p, "m1").innerText()).replace(/\n/g, " ").slice(0, 60));
+
+  const push = ctl(p, "a1").getByRole("button", { name: /Push .* to Weekly Goal/ });
+  check("an action of a month's target offers the week", (await push.count()) === 1);
+  await push.click();
+  await p.waitForTimeout(800);
+
+  const h = await stored(p);
+  check("the target stays in the month",
+    h.oneMonth.length === 1 && h.oneMonth[0].id === "m1");
+  check("...and nothing was copied into the week",
+    h.thisWeek.every((s) => s.id !== "m1" && s.id !== "a1"),
+    JSON.stringify(h.thisWeek.map((s) => s.title)));
+  check("the action is scheduled onto the week",
+    h.oneMonth[0].steps[0].at === "thisWeek",
+    JSON.stringify(h.oneMonth[0].steps.map((t) => t.at ?? "—")));
+  check("...and its sibling stayed behind", !h.oneMonth[0].steps[1].at);
+
+  check("the week shows the action",
+    (await titlesIn(p, "thisWeek")).includes("Notifications and stickers"),
+    JSON.stringify(await titlesIn(p, "thisWeek")));
+  // The tag is text rather than a field, and uppercased by the stylesheet.
+  check("...tagged with the target it serves",
+    /FINALISE USER INTERFACE/i.test(await p.locator("[data-tier=thisWeek]").innerText()),
+    (await p.locator("[data-tier=thisWeek]").innerText()).replace(/\n/g, " ").slice(0, 160));
+  check("...and the month says where it went",
+    /On Weekly Goal/i.test(await month.innerText()),
+    (await month.innerText()).replace(/\n/g, " ").slice(0, 120));
+
+  // Ticking it in the week is ticking it in the target: one object, one count.
+  await ctl(p, "a1").getByRole("button", { name: "Mark complete" }).click();
+  await p.waitForTimeout(800);
+  check("ticking it in the week moves the target's own count",
+    /1\/2/.test(await ctl(p, "m1").innerText()),
+    (await ctl(p, "m1").innerText()).replace(/\n/g, " ").slice(0, 60));
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ----------------- a pushed action becomes a target where it lands */
+{
+  const { p, errs } = await open({
+    ...GOAL,
+    horizons: {
+      ...GOAL.horizons,
+      year: [{ id: "y1", title: "Finale user Interface", done: false, steps: [
+        { id: "t1a", title: "test 1", done: false, at: "sixMonths" },
+        { id: "t2a", title: "test 2", done: false },
+      ] }],
+      sixMonths: [],
+    },
   });
-  const grip = row.getByRole("button", { name: /Drag to reorder/ });
+  await openGoal(p);
+
+  const six = p.locator("[data-tier=sixMonths]");
+  check("the pushed action is shown at six months",
+    (await titlesIn(p, "sixMonths")).includes("test 1"),
+    JSON.stringify(await titlesIn(p, "sixMonths")));
+  check("...tagged with the year's target it came from",
+    /FINALE USER INTERFACE/i.test(await six.innerText()));
+
+  // The request: it can be broken down where it landed.
+  const add = addTo(p, "test 1");
+  check("it offers to be broken into actions of its own", (await add.count()) === 1);
+  await add.click();
+  await p.waitForTimeout(500);
+  await six.locator('input[placeholder="An action that gets you there…"]').first()
+    .fill("Wire the settings screen");
+  await p.waitForTimeout(600);
+
+  const child = await line(p, "t1a");
+  check("the new action is written inside it, not beside it",
+    (child.steps ?? []).length === 1,
+    JSON.stringify((child.steps ?? []).map((s) => s.title)));
+  check("...and it now counts its own parts",
+    /0\/1/.test(await ctl(p, "t1a").innerText()),
+    (await ctl(p, "t1a").innerText()).replace(/\n/g, " ").slice(0, 70));
+
+  // And that grandchild can itself be pushed one rung on.
+  const grand = (await line(p, "t1a")).steps[0].id;
+  await ctl(p, grand).getByRole("button", { name: /Push .* to 3 Months/ }).click();
+  await p.waitForTimeout(800);
+  check("a grandchild can be pushed on to three months",
+    (await titlesIn(p, "threeMonths")).includes("Wire the settings screen"),
+    JSON.stringify(await titlesIn(p, "threeMonths")));
+  check("...tagged with the six-month line it belongs to",
+    /TEST 1/i.test(await p.locator("[data-tier=threeMonths]").innerText()));
+
+  // Finishing it settles the whole chain back up to the year.
+  await ctl(p, grand).getByRole("button", { name: "Mark complete" }).click();
+  await p.waitForTimeout(900);
+  check("finishing the grandchild finishes its heading",
+    (await line(p, "t1a")).done === true);
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------- the week is not written into directly */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  check("the week offers no way to write a target into it",
+    (await p.locator("[data-tier=thisWeek]")
+      .getByRole("button", { name: /Add target/ }).count()) === 0);
+  check("...but the month does",
+    (await p.locator("[data-tier=oneMonth]")
+      .getByRole("button", { name: /Add target/ }).count()) === 1);
+  check("...and today still takes an action typed straight in",
+    (await p.locator("[data-tier=today]")
+      .getByRole("button", { name: /Add action/ }).count()) === 1);
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* --------------------------------------- dragging a row onto the next rung */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  // The same move the arrow makes, as the gesture a hand reaches for first —
+  // and only ever onto the next rung.
+  const grip = ctl(p, "m1").getByRole("button", { name: /Drag to reorder/ });
   const from = await grip.boundingBox();
-  const onto = await p.locator("[data-tier=today]").boundingBox();
+  const onto = await p.locator("[data-tier=thisWeek]").boundingBox();
 
   await p.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await p.mouse.down();
-  // In steps, so framer sees a gesture rather than a teleport.
   for (let i = 1; i <= 12; i++) {
     await p.mouse.move(
       from.x + from.width / 2,
@@ -400,35 +562,23 @@ async function openGoal(p) {
   await p.mouse.up();
   await p.waitForTimeout(900);
 
-  const stored = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  check("a row dragged onto Today lands there",
-    stored.today.some((s) => s.id === "w1"),
-    JSON.stringify(stored.today.map((s) => s.title)));
-  check("...and left the week", !stored.thisWeek.some((s) => s.id === "w1"),
-    JSON.stringify(stored.thisWeek.map((s) => s.title)));
-  check("...tagged with where it came from",
-    stored.today.find((s) => s.id === "w1")?.promotedFrom === "thisWeek");
+  check("a row dragged onto the next rung lands there",
+    (await line(p, "m1")).at === "thisWeek", String((await line(p, "m1")).at));
+  check("...and its actions came with it",
+    (await titlesIn(p, "thisWeek")).includes("Notifications and stickers"),
+    JSON.stringify(await titlesIn(p, "thisWeek")));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }
 
-/* ------------------------------ a drag that stays in its own tier only sorts */
+/* ------------------------------ a drag that stays put only sorts */
 {
   const { p, errs } = await open();
   await openGoal(p);
 
-  const before = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons.today.length
-  );
-  const row = p.locator("li").filter({
-    has: p.locator('input[value="Get 20,000 active users to Innerly"]'),
-  });
-  const grip = row.getByRole("button", { name: /Drag to reorder/ });
+  const grip = ctl(p, "s2").getByRole("button", { name: /Drag to reorder/ });
   const from = await grip.boundingBox();
-
   await p.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await p.mouse.down();
   await p.mouse.move(from.x + from.width / 2, from.y + 18, { steps: 6 });
@@ -436,13 +586,8 @@ async function openGoal(p) {
   await p.mouse.up();
   await p.waitForTimeout(800);
 
-  const after = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  check("a short drag does not fling anything into today",
-    after.today.length === before, `${before} → ${after.today.length}`);
-  check("...and the row stays where it was written",
-    after.sixMonths.some((s) => s.id === "s2"));
+  check("a short drag does not fling anything down a tier",
+    (await line(p, "s2")).at === undefined, String((await line(p, "s2")).at));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -457,32 +602,28 @@ async function openGoal(p) {
   check("the day starts holding the one thing carried over",
     /1 \/ 3/.test(await count()), (await count()).split("\n")[1] ?? "");
 
-  const take = () => p.getByRole("button", { name: /Take .* into today/ });
-  await take().first().click();
-  await p.waitForTimeout(600);
-  check("...two", /2 \/ 3/.test(await count()));
-  await take().first().click();
-  await p.waitForTimeout(600);
-  check("...three", /3 \/ 3/.test(await count()));
+  const toToday = () => p.getByRole("button", { name: /Push .* to Today/ });
+  await toToday().first().click();
+  await p.waitForTimeout(700);
+  check("...two", /2 \/ 3/.test(await count()), (await count()).split("\n")[1] ?? "");
 
-  const stored = () => p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  const before = (await stored()).today.length;
+  // Bring another line down to the week so there is a third thing to pick.
+  await ctl(p, "m1").getByRole("button", { name: /Push .* to Weekly Goal/ }).click();
+  await p.waitForTimeout(700);
+  await ctl(p, "m1").getByRole("button", { name: /Push .* to Today/ }).click();
+  await p.waitForTimeout(700);
+  check("...three", /3 \/ 3/.test(await count()), (await count()).split("\n")[1] ?? "");
 
-  // The fourth is refused, and says why rather than doing nothing.
-  const left = take().first();
-  check("a fourth is not offered", await left.isDisabled());
-  check("...and says what the cap is",
-    /cap/i.test(await left.getAttribute("title")),
-    await left.getAttribute("title"));
+  const before = (await stored(p)).today.length;
+  check("a fourth is not offered at all",
+    (await p.getByRole("button", { name: /Push .* to Today/ }).count()) === 0);
   check("...and adding a fresh action is closed off too",
     await p.locator("[data-tier=today]")
       .getByRole("button", { name: /Add action/ }).isDisabled());
   check("...explaining itself in words",
-    /Finish one, or put one back/i.test(await p.locator("[data-tier=today]").innerText()));
+    /Finish one, or put one back/i.test(await count()));
   check("...and nothing was written",
-    (await stored()).today.length === before, `${before} → ${(await stored()).today.length}`);
+    (await stored(p)).today.length === before);
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -493,47 +634,34 @@ async function openGoal(p) {
   const { p, errs } = await open();
   await openGoal(p);
 
-  await p.getByRole("button", { name: /Take .* into today/ }).first().click();
-  await p.waitForTimeout(600);
+  await p.getByRole("button", { name: /Push .* to Today/ }).first().click();
+  await p.waitForTimeout(700);
 
-  const flags = p.getByRole("button", { name: /main thing today/ });
-  check("today's actions each offer the flag", (await flags.count()) === 2,
+  const flags = p.locator("[data-tier=today]")
+    .getByRole("button", { name: /main thing today/ });
+  check("today's lines each offer the flag", (await flags.count()) === 2,
     `${await flags.count()} offered`);
   check("...and nothing outside today does",
-    (await p.locator("[data-tier=thisWeek]")
+    (await p.locator("[data-tier=oneMonth]")
       .getByRole("button", { name: /main thing today/ }).count()) === 0);
 
   await flags.first().click();
-  await p.waitForTimeout(600);
-  const one = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons.today
-  );
+  await p.waitForTimeout(700);
   check("naming the day's one thing writes it down",
-    one.filter((s) => s.primary).length === 1,
-    JSON.stringify(one.map((s) => [s.title, !!s.primary])));
+    (await flat(p)).filter((s) => s.primary).length === 1,
+    JSON.stringify((await flat(p)).filter((s) => s.primary).map((s) => s.title)));
 
-  // Naming a second has to move the flag, not add one — a day with two
-  // bottlenecks has none.
-  await p.getByRole("button", { name: /main thing today/ }).nth(1).click();
-  await p.waitForTimeout(600);
-  const two = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons.today
-  );
-  check("naming a second moves the flag rather than adding one",
-    two.filter((s) => s.primary).length === 1,
-    JSON.stringify(two.map((s) => [s.title, !!s.primary])));
-  check("...onto the one just named",
-    two.find((s) => s.primary)?.title === one.find((s) => !s.primary)?.title,
-    two.find((s) => s.primary)?.title);
+  await p.locator("[data-tier=today]")
+    .getByRole("button", { name: /main thing today/ }).nth(1).click();
+  await p.waitForTimeout(700);
+  const two = (await flat(p)).filter((s) => s.primary);
+  check("naming a second moves the flag rather than adding one", two.length === 1,
+    JSON.stringify(two.map((s) => s.title)));
 
-  // And pressing the one that holds it takes the name back.
   await p.getByRole("button", { name: /Not the main thing today/ }).click();
-  await p.waitForTimeout(600);
-  const none = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons.today
-  );
+  await p.waitForTimeout(700);
   check("...and a day is allowed not to have one",
-    none.every((s) => !s.primary));
+    (await flat(p)).every((s) => !s.primary));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -549,22 +677,18 @@ async function openGoal(p) {
   await p.locator('input[value="Change the review card to white"]').first()
     .fill("Work on the UI");
   await p.keyboard.press("Tab");
-  await p.waitForTimeout(500);
+  await p.waitForTimeout(600);
   check("an activity gets a word of advice",
     /Name what will exist/i.test(await p.locator("main").innerText()));
 
   // Advice only — it never stands between somebody and their own plan.
-  const saved = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons.today
-  );
   check("...but the words are still theirs to keep",
-    saved.some((s) => s.title === "Work on the UI"),
-    JSON.stringify(saved.map((s) => s.title)));
+    (await stored(p)).today.some((s) => s.title === "Work on the UI"));
 
   await p.locator('input[value="Work on the UI"]').first()
     .fill("Wrap long task sentences in the daily plan");
   await p.keyboard.press("Tab");
-  await p.waitForTimeout(500);
+  await p.waitForTimeout(600);
   check("a real deliverable is left in peace",
     !/Name what will exist/i.test(await p.locator("main").innerText()));
 
@@ -597,230 +721,57 @@ async function openGoal(p) {
   await p.close();
 }
 
-/* ---------------------------------------------------- steps under a sub-goal */
+/* -------------------------------------- breaking a target down, and settling */
 {
   const { p, errs } = await open();
   await openGoal(p);
 
-  const row = p.locator("li").filter({ has: p.locator('input[value="Fix the wording in the UI"]') });
-  await row.hover();
-  await p.waitForTimeout(300);
-
-  const add = row.getByRole("button", { name: /Add action/ });
-  check("a target offers to be broken into actions", (await add.count()) > 0);
+  const add = addTo(p, "Fix the wording in the UI");
+  check("a target offers to be broken into actions", (await add.count()) === 1);
+  check("...without having to hover for it", await add.isVisible());
 
   await add.click();
   await p.waitForTimeout(400);
-  await row.locator('input[placeholder="An action that gets you there…"]').first()
-    .fill("Change the home page wording");
+  await p.locator('[data-tier=thisWeek] input[placeholder="An action that gets you there…"]')
+    .first().fill("Change the home page wording");
+  await p.waitForTimeout(400);
   await add.click();
   await p.waitForTimeout(400);
-  await row.locator('input[placeholder="An action that gets you there…"]').last()
-    .fill("Change the daily plan wording");
-  await p.waitForTimeout(500);
+  await p.locator('[data-tier=thisWeek] input[placeholder="An action that gets you there…"]')
+    .first().fill("Change the daily plan wording");
+  await p.waitForTimeout(600);
 
-  check("the heading counts its steps", /0\/2/.test(await row.innerText()),
-    (await row.innerText()).replace(/\n/g, " ").slice(0, 70));
+  check("the heading counts its actions", /0\/2/.test(await ctl(p, "w1").innerText()),
+    (await ctl(p, "w1").innerText()).replace(/\n/g, " ").slice(0, 70));
 
-  const ticks = row.getByRole("button", { name: "Mark step complete" });
-  await ticks.first().click();
-  await p.waitForTimeout(500);
+  const parts = (await line(p, "w1")).steps;
+  await ctl(p, parts[0].id).getByRole("button", { name: "Mark complete" }).click();
+  await p.waitForTimeout(600);
   check("one of two leaves the heading open",
-    /1\/2/.test(await row.innerText()) &&
-      (await p.evaluate(() =>
-        JSON.parse(localStorage.getItem("innerly:goals"))[0]
-          .horizons.thisWeek.find((s) => s.id === "w1").done)) === false,
-    (await row.innerText()).replace(/\n/g, " ").slice(0, 70));
+    /1\/2/.test(await ctl(p, "w1").innerText()) &&
+      (await line(p, "w1")).done === false,
+    (await ctl(p, "w1").innerText()).replace(/\n/g, " ").slice(0, 70));
 
-  await row.getByRole("button", { name: "Mark step complete" }).first().click();
-  await p.waitForTimeout(700);
-
-  const stored = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  const parent =
-    stored.thisWeek.find((s) => s.id === "w1") ?? stored.today.find((s) => s.id === "w1");
-  check("finishing every step ticks the heading itself", parent.done === true,
-    JSON.stringify(parent && { done: parent.done, steps: parent.steps?.length }));
-  check("...and the steps travel with it wherever it goes",
-    (parent.steps ?? []).length === 2,
-    JSON.stringify((parent.steps ?? []).map((t) => t.title)));
+  await ctl(p, parts[1].id).getByRole("button", { name: "Mark complete" }).click();
+  await p.waitForTimeout(800);
+  check("finishing every action ticks the heading itself",
+    (await line(p, "w1")).done === true);
+  check("...and the actions stay under it", (await line(p, "w1")).steps.length === 2);
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }
 
-/* --------------------------- a weekly goal lends its steps and stays in the week */
+/* ------------------------------------- today holds doing, not planning */
 {
   const { p, errs } = await open();
   await openGoal(p);
 
-  // Break the week's action into steps, then finish today so it takes its turn.
-  const row = p.locator("li").filter({ has: p.locator('input[value="Fix the wording in the UI"]') });
-  const add = row.getByRole("button", { name: /Add action/ });
-  check("Add action is there without having to hover for it",
-    await add.isVisible(), "no hover needed");
-
-  await add.click();
-  await p.waitForTimeout(400);
-  await row.locator('input[placeholder="An action that gets you there…"]').first()
-    .fill("Change the home page wording");
-  await p.waitForTimeout(400);
-
-  // Chosen, not delivered: the week's goal comes down because it is asked to.
-  await row.getByRole("button", { name: /Take .* into today/ }).click();
-  await p.waitForTimeout(900);
-
-  const stored = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  check("the weekly goal stays in the week", stored.thisWeek.length === 1,
-    JSON.stringify(stored.thisWeek.map((s) => s.title)));
-  check("...and the button now says it is on today",
-    /On today/i.test(await row.innerText()),
-    (await row.innerText()).replace(/\n/g, " ").slice(0, 90));
-  check("...with its actions scheduled onto today",
-    (stored.thisWeek[0].steps ?? []).every((t) => t.at === "today"),
-    JSON.stringify((stored.thisWeek[0].steps ?? []).map((t) => t.at ?? "—")));
-  check("...and is not moved into today",
-    !stored.today.some((s) => s.id === "w1"),
-    JSON.stringify(stored.today.map((s) => s.id)));
-
-  const body = await p.locator("main").innerText();
-  check("its step is on today's list",
-    body.includes("Change the home page wording"), body.slice(-260));
-  // The tag is uppercased by the stylesheet, so innerText shouts it back.
-  check("...tagged with the goal it belongs to",
-    /FIX THE WORDING IN THE UI/i.test(body),
-    body.slice(-160).replace(/\n/g, " "));
-
-  // Finishing the step should strike the weekly goal through.
-  await p.getByRole("button", { name: 'Mark "Change the home page wording" complete' }).click();
-  await p.waitForTimeout(900);
-  const after = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  check("finishing its steps finishes the weekly goal",
-    after.thisWeek[0].done === true);
-  check("...which stays where it was written",
-    after.thisWeek.length === 1, JSON.stringify(after.thisWeek.map((s) => s.title)));
-
-  check("no page errors", errs.length === 0, errs[0]);
-  await p.close();
-}
-
-/* ------------------- an action pushed down, with its target's name on it */
-{
-  // The shape from the screenshot: two targets in the month, one of them
-  // broken into three actions that need scheduling into the week.
-  const { p, errs } = await open({
-    ...GOAL,
-    horizons: {
-      ...GOAL.horizons,
-      oneMonth: [
-        { id: "m1", title: "Finalise user Interface", done: false, steps: [
-          { id: "a1", title: "Notifications + stickers with Jelly's animation", done: false },
-          { id: "a2", title: "Final features", done: false },
-          { id: "a3", title: "final app tour", done: false },
-        ] },
-        { id: "m2", title: "Finalise Admin Interface", done: false },
-      ],
-    },
-  });
-  await openGoal(p);
-
-  const month = p.locator("[data-tier=oneMonth]");
-  const target = month.locator("li").filter({
-    has: p.locator('input[value="Finalise user Interface"]'),
-  });
-  check("the target counts its actions", /0\/3/.test(await target.innerText()),
-    (await target.innerText()).replace(/\n/g, " ").slice(0, 60));
-
-  const push = target.getByRole("button", { name: /Push .* to Weekly Goal/ });
-  check("each action offers to be pushed to the week", (await push.count()) === 3,
-    `${await push.count()} arrows`);
-
-  await push.first().click();
-  await p.waitForTimeout(800);
-
-  const stored = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons
-  );
-  check("both targets stay in the month", stored.oneMonth.length === 2,
-    JSON.stringify(stored.oneMonth.map((s) => s.title)));
-  check("...and nothing was copied into the week",
-    stored.thisWeek.every((s) => s.id !== "m1"),
-    JSON.stringify(stored.thisWeek.map((s) => s.title)));
-  check("the action is scheduled onto the week",
-    stored.oneMonth[0].steps[0].at === "thisWeek",
-    JSON.stringify(stored.oneMonth[0].steps.map((t) => t.at ?? "—")));
-  check("...and its siblings stayed behind",
-    !stored.oneMonth[0].steps[1].at && !stored.oneMonth[0].steps[2].at);
-
-  const week = await p.locator("[data-tier=thisWeek]").innerText();
-  check("the week shows the action", /Notifications \+ stickers/i.test(week),
-    week.replace(/\n/g, " ").slice(0, 120));
-  // The tag is uppercased by the stylesheet, so innerText shouts it back.
-  check("...tagged with the target it serves",
-    /FINALISE USER INTERFACE/i.test(week),
-    week.replace(/\n/g, " ").slice(0, 160));
-  check("...and the month says where it went",
-    /On Weekly Goal/i.test(await month.innerText()),
-    (await month.innerText()).replace(/\n/g, " ").slice(0, 120));
-
-  // Ticking it in the week is ticking it in the target: one object, one count.
-  await p.locator("[data-tier=thisWeek]")
-    .getByRole("button", { name: /Mark "Notifications \+ stickers.*" complete/ }).click();
-  await p.waitForTimeout(800);
-  check("ticking it in the week moves the target's own count",
-    /1\/3/.test(await month.innerText()),
-    (await month.innerText()).replace(/\n/g, " ").slice(0, 60));
-  check("...and it leaves the week's list",
-    !/Notifications \+ stickers/i.test(await p.locator("[data-tier=thisWeek]").innerText()));
-
-  check("no page errors", errs.length === 0, errs[0]);
-  await p.close();
-}
-
-/* --------------------------- and on again to today, then home to its target */
-{
-  const { p, errs } = await open({
-    ...GOAL,
-    horizons: {
-      ...GOAL.horizons,
-      today: [],
-      thisWeek: [],
-      oneMonth: [
-        { id: "m1", title: "Finalise user Interface", done: false, steps: [
-          { id: "a1", title: "Notifications and stickers", done: false, at: "thisWeek" },
-        ] },
-      ],
-    },
-  });
-  await openGoal(p);
-
-  await p.locator("[data-tier=thisWeek]")
-    .getByRole("button", { name: /Push .* closer/ }).click();
-  await p.waitForTimeout(800);
-  const onDay = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons.oneMonth[0].steps[0].at
-  );
-  check("pushing again carries it to today", onDay === "today", String(onDay));
-  check("...where the day counts it as one thing",
-    /1 \/ 3/.test(await p.locator("[data-tier=today]").innerText()),
-    (await p.locator("[data-tier=today]").innerText()).split("\n")[1] ?? "");
-  check("...still tagged with its target",
-    /FINALISE USER INTERFACE/i.test(await p.locator("[data-tier=today]").innerText()));
-
-  await p.locator("[data-tier=today]")
-    .getByRole("button", { name: /Send .* back to/ }).click();
-  await p.waitForTimeout(800);
-  const home = await p.evaluate(
-    () => JSON.parse(localStorage.getItem("innerly:goals"))[0].horizons.oneMonth[0].steps[0].at
-  );
-  check("and it can be sent home to its target", home === undefined, String(home));
-  check("...leaving the day empty again",
-    /0 \/ 3/.test(await p.locator("[data-tier=today]").innerText()));
+  check("a line on today is not offered further breaking down",
+    (await addTo(p, "Change the review card to white").count()) === 0);
+  check("...though the tier itself still takes a fresh action",
+    (await p.locator("[data-tier=today]")
+      .getByRole("button", { name: /Add action/ }).count()) === 1);
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -832,8 +783,7 @@ async function openGoal(p) {
   await openGoal(p);
   const body = await p.locator("main").innerText();
   check("the week is called what it is", /Weekly Goal/i.test(body));
-  check("...and no longer This Week", !/THIS WEEK/i.test(body),
-    body.split("\n").find((l) => /week/i.test(l)) ?? "");
+  check("...and no longer This Week", !/THIS WEEK/i.test(body));
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
 }

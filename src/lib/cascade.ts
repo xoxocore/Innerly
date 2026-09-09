@@ -1,25 +1,35 @@
-import { HORIZONS, type Goal, type Horizon, type Step, type SubGoal } from "./types";
+import { HORIZONS, type Goal, type Horizon, type SubGoal } from "./types";
 
 /**
- * The goal cascade: architected top-down, executed bottom-up, chosen by hand.
+ * The goal ladder: architected top-down, executed bottom-up, moved by hand.
  *
  * A goal is a chain of time — a year, then six months, then three, a month, a
- * week — and it is built backwards, each rung a dependency of the one above it.
- * Work then moves the other way: finishing something today moves the week,
- * which moves the month.
+ * week, today — and it is built backwards, each rung a dependency of the one
+ * above it. Work then moves the other way: finishing something today moves the
+ * week, which moves the month.
  *
- * What does *not* happen anywhere in here is a machine deciding what somebody
- * does today. An earlier version of this file promoted the next action into
- * Today the moment the last one was ticked, and it was wrong in a way that took
- * a while to see. A queue that refills itself is a queue you stop reading: the
- * day arrives already decided, so the one moment in the whole system that asks
- * a person to look at their week and choose is spent watching something appear.
- * It also cannot know that today is a bad day, and will hand a full load to
- * somebody who has none — so the plan and the person quietly come apart, and
- * the plan is the one that gets abandoned.
+ * Two rules shape everything in this file.
  *
- * So promotion is a deliberate act — `takeIntoToday`, called because a person
- * pressed something — and these are the rules that hold around it:
+ * The first is that no machine decides what somebody does today. An earlier
+ * version promoted the next action the moment the last was ticked, and it was
+ * wrong in a way that took a while to see: a queue that refills itself is a
+ * queue you stop reading, so the day arrives already decided and the one moment
+ * that asks a person to look at their week and choose is spent watching
+ * something appear. It cannot know today is a bad day, either, and hands a full
+ * load to somebody who has none.
+ *
+ * The second is that work descends one rung at a time. A year's target cannot
+ * become this afternoon's errand in a single press — it becomes a six-month
+ * target, then a three-month one, then a month's, and each of those is a
+ * decision somebody made with the tier above it in front of them. Skipping the
+ * middle is how a plan turns into a wish with a deadline attached.
+ *
+ * Those two together are why a line and its position are separate things. A
+ * line lives inside the target it belongs to, wherever that was written, and
+ * carries `at` to say which nearer tier its doing has been scheduled into.
+ * Nothing is ever copied, so ticking it anywhere moves the count everywhere.
+ *
+ * Around the choice of what today holds, three more rules:
  *
  *   A. One primary. The single task that makes the rest easier or unnecessary.
  *   B. Three at most. A day given more than it has room for manufactures
@@ -34,85 +44,108 @@ import { HORIZONS, type Goal, type Horizon, type Step, type SubGoal } from "./ty
 /** Rule B, the capacity cap. Three high-leverage things is a full day. */
 export const DAILY_CAP = 3;
 
-const open = (list: SubGoal[]) => list.filter((s) => !s.done);
-
-const hasSteps = (s: SubGoal) => (s.steps?.length ?? 0) > 0;
-
 const HORIZON_KEYS = HORIZONS.map((h) => h.key);
 
-/** One action, shown in a nearer tier than the target that owns it. */
-export type Borrowed = {
-  /** The action itself. Ticking it is ticking it inside its target. */
-  step: Step;
-  /** The target it belongs to, and where that target is written. */
-  parent: SubGoal;
-  parentHorizon: Horizon;
+/** Where a line sits: where it was pushed to, or wherever its parent sits. */
+export type Placed = {
+  sub: SubGoal;
+  /** The tier it is shown in. */
+  tier: Horizon;
+  /** The line it belongs to, when that line is somewhere else. */
+  parent?: SubGoal;
+  /** Where that parent is shown, which is what the tag names. */
+  parentTier?: Horizon;
+  /** The horizon list at the root of this line's chain, for edits. */
+  home: Horizon;
+  /** Ids from the root of the chain down to this line, for edits. */
+  path: string[];
 };
 
 /**
- * The actions scheduled into one tier from targets written further out.
+ * Walk a goal, working out where every line is actually shown.
  *
- * A target broken into actions does not travel. It stays written where it was
- * written — that is the plan, and watching the plan empty itself is not the
- * same as making progress — and its actions are scheduled down one at a time.
- * "Finalise the user interface" sits in the month with its count climbing,
- * while "Notifications + stickers" is on this week, tagged with the target it
- * is in service of. The target is struck through when its actions are done, in
- * the month where it has been sitting all along.
+ * The plan is a tree and the tiers are a view of it: a line is shown wherever
+ * it was pushed to, and a line that was never pushed is shown wherever its
+ * parent is. Everything else in this file reads the tree through here, so there
+ * is exactly one place that knows the rule.
  */
-export function borrowedAt(goal: Goal, horizon: Horizon): Borrowed[] {
-  const out: Borrowed[] = [];
-  for (const key of HORIZON_KEYS) {
-    if (key === horizon) continue;
-    for (const parent of goal.horizons[key]) {
-      if (parent.done) continue;
-      for (const step of parent.steps ?? []) {
-        if (!step.done && step.at === horizon) {
-          out.push({ step, parent, parentHorizon: key });
-        }
-      }
+export function placements(goal: Goal): Placed[] {
+  const out: Placed[] = [];
+
+  const walk = (
+    sub: SubGoal,
+    parentTier: Horizon,
+    home: Horizon,
+    path: string[],
+    parent?: SubGoal
+  ) => {
+    const tier = sub.at ?? parentTier;
+    out.push({
+      sub,
+      tier,
+      // Only worth naming when the line has left its parent behind; a line
+      // shown under its own parent needs no tag saying so.
+      parent: tier === parentTier ? undefined : parent,
+      parentTier: tier === parentTier ? undefined : parentTier,
+      home,
+      path,
+    });
+    for (const child of sub.steps ?? []) {
+      walk(child, tier, home, [...path, child.id], sub);
     }
+  };
+
+  for (const key of HORIZON_KEYS) {
+    for (const sub of goal.horizons[key]) walk(sub, key, key, [sub.id]);
   }
   return out;
 }
 
-/** The targets currently lending an action to somewhere nearer. */
-export function lentSubs(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
-  const out: { sub: SubGoal; horizon: Horizon }[] = [];
-  for (const key of HORIZON_KEYS) {
-    for (const s of goal.horizons[key]) {
-      if (!s.done && (s.steps ?? []).some((t) => !t.done && t.at)) {
-        out.push({ sub: s, horizon: key });
-      }
-    }
+/** The lines shown in one tier, top level first, each with its own children. */
+export function shownAt(goal: Goal, horizon: Horizon): Placed[] {
+  return placements(goal).filter(
+    (p) =>
+      p.tier === horizon &&
+      // A line shown under its own parent is drawn by that parent, not here.
+      (p.parentTier !== undefined || p.path.length === 1)
+  );
+}
+
+/** Whether a line's own children are drawn beneath it or off in another tier. */
+export function childrenHere(sub: SubGoal, tier: Horizon): SubGoal[] {
+  return (sub.steps ?? []).filter((t) => (t.at ?? tier) === tier);
+}
+
+/** Find one line anywhere in a goal, by the path that identifies it. */
+export function findByPath(goal: Goal, home: Horizon, path: string[]): SubGoal | null {
+  let list = goal.horizons[home];
+  let found: SubGoal | null = null;
+  for (const id of path) {
+    found = list.find((s) => s.id === id) ?? null;
+    if (!found) return null;
+    list = found.steps ?? [];
   }
-  return out;
+  return found;
 }
 
-/** Whether any of a target's open actions are scheduled onto a given tier. */
-export function isOn(sub: SubGoal, horizon: Horizon): boolean {
-  return (sub.steps ?? []).some((t) => !t.done && t.at === horizon);
-}
+/** Rewrite one line in place, leaving the rest of the tree untouched. */
+export function editByPath(
+  goal: Goal,
+  home: Horizon,
+  path: string[],
+  change: (sub: SubGoal) => SubGoal
+): Goal {
+  const walk = (list: SubGoal[], depth: number): SubGoal[] =>
+    list.map((s) => {
+      if (s.id !== path[depth]) return s;
+      if (depth === path.length - 1) return change(s);
+      return settle({ ...s, steps: walk(s.steps ?? [], depth + 1) });
+    });
 
-/** Everything today asks of you: its own actions, plus any borrowed ones. */
-export function todaysWork(goal: Goal): {
-  sub: SubGoal;
-  horizon: Horizon;
-  step?: Step;
-  parent?: SubGoal;
-}[] {
-  const own = goal.horizons.today
-    .filter((s) => !s.done)
-    .map((s) => ({ sub: s, horizon: "today" as Horizon }));
-
-  const borrowed = borrowedAt(goal, "today").map(({ step, parent, parentHorizon }) => ({
-    sub: { id: step.id, title: step.title, done: step.done },
-    horizon: parentHorizon,
-    step,
-    parent,
-  }));
-
-  return [...own, ...borrowed];
+  return {
+    ...goal,
+    horizons: { ...goal.horizons, [home]: walk(goal.horizons[home], 0) },
+  };
 }
 
 /** The tier one closer than this one, or null at Today. */
@@ -121,99 +154,95 @@ export function nearer(h: Horizon): Horizon | null {
   return i >= 0 && i < HORIZON_KEYS.length - 1 ? HORIZON_KEYS[i + 1] : null;
 }
 
-/** Where an action currently sits: where it was pushed to, or its target's tier. */
-export function stepAt(step: Step, parentHorizon: Horizon): Horizon {
-  return step.at ?? parentHorizon;
+/** Take one line out of the tree, wherever it sits. */
+export function removeByPath(goal: Goal, home: Horizon, path: string[]): Goal {
+  if (path.length === 1) {
+    return {
+      ...goal,
+      horizons: {
+        ...goal.horizons,
+        [home]: goal.horizons[home].filter((s) => s.id !== path[0]),
+      },
+    };
+  }
+  return editByPath(goal, home, path.slice(0, -1), (parent) =>
+    settle({
+      ...parent,
+      steps: (parent.steps ?? []).filter((t) => t.id !== path[path.length - 1]),
+    })
+  );
 }
 
 /**
- * Push one action a tier closer, leaving its target where it is.
+ * Push one line a tier closer, leaving the target it belongs to where it is.
  *
- * This is the arrow on an action's own row, and it is how a month's target
- * turns into this week's work without the target itself pretending to be a
- * weekly one. Nothing is copied: the line the week shows is the same object
- * the target counts, so ticking it there moves the target's progress.
+ * Exactly one rung, and never further. The arrow on a month's action says
+ * "Weekly Goal" rather than "Today" because that is the only move it can make:
+ * to work on it this afternoon you push it to the week, look at the week, and
+ * push it again — and the second press is a second decision, made with the
+ * week's other work in front of you.
+ *
+ * Its own children come with it, since they are parts of it and are shown
+ * wherever it is.
  */
-export function pushStep(
-  goal: Goal,
-  horizon: Horizon,
-  subId: string,
-  stepId: string,
-  to?: Horizon
-): Goal {
-  const parent = goal.horizons[horizon].find((s) => s.id === subId);
-  const step = parent?.steps?.find((t) => t.id === stepId);
-  if (!parent || !step || step.done) return goal;
+export function push(goal: Goal, home: Horizon, path: string[]): Goal {
+  const placed = placements(goal).find(
+    (p) => p.home === home && p.path.join("/") === path.join("/")
+  );
+  if (!placed || placed.sub.done) return goal;
 
-  const target = to ?? nearer(stepAt(step, horizon));
-  if (!target || target === stepAt(step, horizon)) return goal;
+  const to = nearer(placed.tier);
+  if (!to) return goal;
 
-  return {
-    ...goal,
-    horizons: {
-      ...goal.horizons,
-      [horizon]: goal.horizons[horizon].map((s) =>
-        s.id !== subId
-          ? s
-          : {
-              ...s,
-              steps: s.steps?.map((t) => (t.id === stepId ? { ...t, at: target } : t)),
-            },
-      ),
-    },
-  };
+  return editByPath(goal, home, path, (sub) => ({ ...sub, at: to }));
 }
 
-/** Send an action back to its target — the other half of pushing it down. */
-export function pullStep(
-  goal: Goal,
-  horizon: Horizon,
-  subId: string,
-  stepId: string
-): Goal {
-  const parent = goal.horizons[horizon].find((s) => s.id === subId);
-  if (!parent?.steps?.some((t) => t.id === stepId && t.at)) return goal;
+/**
+ * Send a line back where it came from — the other half of pushing it.
+ *
+ * Back one rung, not all the way home, so undoing a push is the same size of
+ * decision as making one.
+ */
+export function pull(goal: Goal, home: Horizon, path: string[]): Goal {
+  const all = placements(goal);
+  const placed = all.find(
+    (p) => p.home === home && p.path.join("/") === path.join("/")
+  );
+  if (!placed?.sub.at) return goal;
 
-  return {
-    ...goal,
-    horizons: {
-      ...goal.horizons,
-      [horizon]: goal.horizons[horizon].map((s) =>
-        s.id !== subId
-          ? s
-          : {
-              ...s,
-              steps: s.steps?.map((t) =>
-                t.id === stepId ? { ...t, at: undefined } : t
-              ),
-            },
-      ),
-    },
-  };
+  // Where it would sit with no `at` at all: its parent's tier, or its home.
+  const parentTier =
+    path.length === 1
+      ? home
+      : all.find(
+          (p) => p.home === home && p.path.join("/") === path.slice(0, -1).join("/")
+        )?.tier ?? home;
+
+  const i = HORIZON_KEYS.indexOf(placed.tier);
+  const back = HORIZON_KEYS[i - 1];
+  // Never back past where it belongs.
+  const to =
+    HORIZON_KEYS.indexOf(back) <= HORIZON_KEYS.indexOf(parentTier) ? undefined : back;
+
+  return editByPath(goal, home, path, (sub) => ({
+    ...sub,
+    at: to,
+    primary: undefined,
+  }));
 }
 
 /* ------------------------------------------------------------- the picks */
 
 /**
- * What a goal is asking of today, counted the way a person feels it.
+ * What the day is holding, counted the way a person feels it.
  *
- * A weekly goal being worked on is one thing you are doing, however many steps
- * it happens to break into — so it counts once. Counting its steps separately
- * would put a careful plan over the cap and a vague one under it, which is
- * exactly backwards.
+ * A line shown on Today is one thing you are doing, however many parts it
+ * happens to break into — so it counts once and its children do not count
+ * again. Counting the parts would put a careful plan over the cap and a vague
+ * one under it, which is exactly backwards.
  */
-export function picksOf(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
-  const lending: { sub: SubGoal; horizon: Horizon }[] = [];
-  for (const key of HORIZON_KEYS) {
-    if (key === "today") continue;
-    for (const sub of goal.horizons[key]) {
-      if (!sub.done && isOn(sub, "today")) lending.push({ sub, horizon: key });
-    }
-  }
-  return [
-    ...open(goal.horizons.today).map((sub) => ({ sub, horizon: "today" as Horizon })),
-    ...lending,
-  ];
+export function picksOf(goal: Goal): Placed[] {
+  return shownAt(goal, "today").filter((p) => !p.sub.done);
 }
 
 /** How full the day is, across every goal. Rule B is about the day, not a goal. */
@@ -225,101 +254,9 @@ export function atCapacity(goals: Goal[]): boolean {
   return dayLoad(goals) >= DAILY_CAP;
 }
 
-/**
- * Take something into today. The one way anything gets there.
- *
- * A sub-goal broken into steps lends them and stays where it was written; one
- * that is a single action moves, and carries a note of where it came from so
- * today can say what it is in service of.
- *
- * The cap is not enforced here on purpose: this sees one goal and the cap is
- * about the whole day, so the caller — which can count every goal — is the only
- * thing in a position to say no, and the only thing able to say why.
- */
-export function takeIntoToday(goal: Goal, from: Horizon, id: string): Goal {
-  if (from === "today") return goal;
-  const sub = goal.horizons[from].find((s) => s.id === id);
-  if (!sub || sub.done) return goal;
-
-  // A target with actions sends them all down and stays where it was written.
-  // The per-action arrow is the finer version of this; this is the whole
-  // target at once, which is what pressing Today on its own row means.
-  if (hasSteps(sub)) {
-    if (isOn(sub, "today")) return goal;
-    return {
-      ...goal,
-      horizons: {
-        ...goal.horizons,
-        [from]: goal.horizons[from].map((s) =>
-          s.id === id
-            ? {
-                ...s,
-                steps: s.steps?.map((t) =>
-                  t.done ? t : { ...t, at: "today" as Horizon }
-                ),
-              }
-            : s
-        ),
-      },
-    };
-  }
-
-  return {
-    ...goal,
-    horizons: {
-      ...goal.horizons,
-      [from]: goal.horizons[from].filter((s) => s.id !== id),
-      today: [...goal.horizons.today, { ...sub, promotedFrom: from }],
-    },
-  };
-}
-
-/**
- * Put something back — the other half of choosing.
- *
- * A choice you cannot reverse is not really a choice, and a day that turns out
- * to hold two things instead of three should be able to say so without anybody
- * having to tick something they did not do.
- */
-export function putBack(goal: Goal, horizon: Horizon, id: string): Goal {
-  const sub = goal.horizons[horizon].find((s) => s.id === id);
-  if (!sub) return goal;
-
-  // A lending target never left, so this only calls its actions home.
-  if (horizon !== "today") {
-    if (!isOn(sub, "today")) return goal;
-    return {
-      ...goal,
-      horizons: {
-        ...goal.horizons,
-        [horizon]: goal.horizons[horizon].map((s) =>
-          s.id === id
-            ? {
-                ...s,
-                primary: undefined,
-                steps: s.steps?.map((t) =>
-                  t.at === "today" ? { ...t, at: undefined } : t
-                ),
-              }
-            : s
-        ),
-      },
-    };
-  }
-
-  const home = sub.promotedFrom;
-  if (!home) return goal;
-  return {
-    ...goal,
-    horizons: {
-      ...goal.horizons,
-      today: goal.horizons.today.filter((s) => s.id !== id),
-      [home]: [
-        ...goal.horizons[home],
-        { ...sub, promotedFrom: undefined, primary: undefined, rolledOver: undefined },
-      ],
-    },
-  };
+/** Everything today asks of you, in the order the card shows it. */
+export function todaysWork(goal: Goal): Placed[] {
+  return picksOf(goal);
 }
 
 /* ------------------------------------------------------- Rule A: primary */
@@ -344,30 +281,31 @@ export function primaryOf(goals: Goal[]): { goal: Goal; sub: SubGoal } | null {
 export function setPrimary(goals: Goal[], goalId: string, subId: string): Goal[] {
   // Pressing the one that already holds it takes the name back, rather than
   // leaving a day permanently insisting one of its three matters most.
-  const already = goals.some(
-    (g) =>
-      g.id === goalId &&
-      HORIZON_KEYS.some((k) =>
-        g.horizons[k].some((s) => s.id === subId && s.primary)
-      )
-  );
+  let already = false;
+  const scan = (list: SubGoal[]) => {
+    for (const s of list) {
+      if (s.id === subId && s.primary) already = true;
+      if (s.steps) scan(s.steps);
+    }
+  };
+  for (const g of goals) {
+    if (g.id !== goalId) continue;
+    for (const key of HORIZON_KEYS) scan(g.horizons[key]);
+  }
 
   return goals.map((goal) => {
     let touched = false;
-    const horizons = { ...goal.horizons };
-    for (const key of HORIZON_KEYS) {
-      let keyTouched = false;
-      const next = horizons[key].map((s) => {
+    const mark = (list: SubGoal[]): SubGoal[] =>
+      list.map((s) => {
+        const kids = s.steps ? mark(s.steps) : undefined;
         const want = goal.id === goalId && s.id === subId && !already;
-        if (!!s.primary === want) return s;
-        keyTouched = true;
-        return { ...s, primary: want ? true : undefined };
-      });
-      if (keyTouched) {
-        horizons[key] = next;
+        if (!!s.primary === want && kids === s.steps) return s;
         touched = true;
-      }
-    }
+        return { ...s, primary: want ? true : undefined, steps: kids };
+      });
+
+    const horizons = { ...goal.horizons };
+    for (const key of HORIZON_KEYS) horizons[key] = mark(horizons[key]);
     return touched ? { ...goal, horizons } : goal;
   });
 }
@@ -421,12 +359,13 @@ export const VAGUE_HINT = "Name what will exist when it's done, not what you'll 
 /* ------------------------------------------------------------ completion */
 
 /**
- * A sub-goal broken into steps is finished exactly when its steps are.
+ * A line with parts under it is finished exactly when they are.
  *
- * Which means the tick on the parent stops being something to set and becomes
- * something to read. Ticking the last step finishes the whole line, and
- * reopening any step reopens it — nobody has to remember to go back and tick
- * the heading they already satisfied.
+ * Which means the tick on it stops being something to set and becomes
+ * something to read. Ticking the last part finishes the whole line, and
+ * reopening any part reopens it — nobody has to remember to go back and tick
+ * the heading they already satisfied. It applies at every depth, so a year's
+ * target settles when its six-month parts do.
  */
 export function settle(sub: SubGoal): SubGoal {
   const steps = sub.steps;
@@ -439,65 +378,46 @@ export function settle(sub: SubGoal): SubGoal {
     done,
     completedAt: done ? new Date().toISOString() : undefined,
     // Finished work is not work in progress. The line stays where it is,
-    // struck through, but it stops asking anything of any tier and gives up
-    // the day's one primary slot rather than holding it.
+    // struck through, but it gives up the day's one primary slot rather than
+    // holding it.
     primary: done ? undefined : sub.primary,
   };
 }
 
-/** Ticking a sub-action. Nothing takes its place; that is tomorrow's choice. */
-export function completeSub(goal: Goal, horizon: Horizon, id: string): Goal {
-  const list = goal.horizons[horizon].map((s) => {
-    if (s.id !== id) return s;
-    const done = !s.done;
-    return {
-      ...s,
-      done,
-      completedAt: done ? new Date().toISOString() : undefined,
-      primary: done ? undefined : s.primary,
-      // Ticking a target means its actions are done, and unticking it means
-      // they are not. Leaving them behind would show a finished line sitting
-      // above unfinished work — and a finished action is scheduled nowhere.
-      steps: s.steps?.map((t) => ({ ...t, done, at: done ? undefined : t.at })),
-    };
+/** Tick a line, wherever in the tree it sits. Nothing takes its place. */
+export function complete(goal: Goal, home: Horizon, path: string[]): Goal {
+  const target = findByPath(goal, home, path);
+  if (!target) return goal;
+  const done = !target.done;
+
+  // Ticking a heading means its parts are done, and unticking it means they
+  // are not. Leaving them behind would show a finished line sitting above
+  // unfinished work — and finished work is scheduled nowhere.
+  const cascadeDown = (sub: SubGoal): SubGoal => ({
+    ...sub,
+    done,
+    completedAt: done ? new Date().toISOString() : undefined,
+    primary: done ? undefined : sub.primary,
+    at: done ? undefined : sub.at,
+    steps: sub.steps?.map(cascadeDown),
   });
-  return { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
+
+  return editByPath(goal, home, path, cascadeDown);
 }
 
-/** Ticking one step, and letting its heading follow. */
-export function completeStep(
+/** Adding, renaming and removing the parts of a line. */
+export function editParts(
   goal: Goal,
-  horizon: Horizon,
-  subId: string,
-  stepId: string
+  home: Horizon,
+  path: string[],
+  change: (steps: SubGoal[]) => SubGoal[]
 ): Goal {
-  const list = goal.horizons[horizon].map((s) =>
-    s.id === subId
-      ? settle({
-          ...s,
-          steps: s.steps?.map((t) =>
-            t.id === stepId ? { ...t, done: !t.done } : t
-          ),
-        })
-      : s
+  return editByPath(goal, home, path, (sub) =>
+    settle({ ...sub, steps: change(sub.steps ?? []) })
   );
-  return { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
 }
 
-/** Adding, renaming and removing the parts of a sub-goal. */
-export function editSteps(
-  goal: Goal,
-  horizon: Horizon,
-  subId: string,
-  change: (steps: Step[]) => Step[]
-): Goal {
-  const list = goal.horizons[horizon].map((s) =>
-    s.id === subId ? settle({ ...s, steps: change(s.steps ?? []) }) : s
-  );
-  return { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
-}
-
-/** How far through its steps a sub-goal is, or null when it has none. */
+/** How far through its parts a line is, or null when it has none. */
 export function stepProgress(sub: SubGoal): { done: number; total: number } | null {
   if (!sub.steps || sub.steps.length === 0) return null;
   return { done: sub.steps.filter((t) => t.done).length, total: sub.steps.length };
@@ -505,14 +425,19 @@ export function stepProgress(sub: SubGoal): { done: number; total: number } | nu
 
 /* -------------------------------------------------------- the day's turn */
 
+/** Everything the day is showing, finished or not. */
+function todayLines(goal: Goal): SubGoal[] {
+  return shownAt(goal, "today").map((p) => p.sub);
+}
+
 /**
- * Carry a goal's Today list into a new day.
+ * Carry a goal's day into the next one.
  *
- * Anything unfinished comes with it and is marked as having been carried, so
- * the day is honest about what is left over rather than quietly presenting
+ * Anything unfinished stays where it is and is marked as having been carried,
+ * so the day is honest about what is left over rather than quietly presenting
  * last week's undone task as today's fresh idea. Anything finished moves into
- * the record of wins, where it stops taking up room on a working list but is
- * still there to look back at.
+ * the record of wins and off the day, where it stops taking up room on a
+ * working list but is still there to look back at.
  *
  * Nothing new is added. The morning is meant to arrive with a short honest
  * list and a decision to make, not with a full one somebody else wrote — and a
@@ -527,17 +452,28 @@ export function turnDay(goal: Goal, day: string): Goal {
   if (goal.lastReset === day) return goal;
   if (!goal.lastReset) return { ...goal, lastReset: day };
 
-  const finished = goal.horizons.today.filter((s) => s.done);
-  const carried = goal.horizons.today
-    .filter((s) => !s.done)
-    .map((s) => (s.rolledOver ? s : { ...s, rolledOver: true }));
+  const shown = todayLines(goal);
+  const finished = new Set(shown.filter((s) => s.done).map((s) => s.id));
+  const carried = new Set(shown.filter((s) => !s.done).map((s) => s.id));
+  const wins = shown.filter((s) => s.done);
 
-  return {
-    ...goal,
-    lastReset: day,
-    wins: [...(goal.wins ?? []), ...finished],
-    horizons: { ...goal.horizons, today: carried },
-  };
+  // A line pushed down from a target is not deleted when the day turns: it
+  // simply stops being scheduled, and goes back to sitting struck through
+  // under the target whose count it already moved.
+  const walk = (list: SubGoal[]): SubGoal[] =>
+    list
+      .filter((s) => !(finished.has(s.id) && !s.at))
+      .map((s) => {
+        const steps = s.steps ? walk(s.steps) : undefined;
+        if (finished.has(s.id)) return { ...s, at: undefined, steps };
+        if (carried.has(s.id) && !s.rolledOver) return { ...s, rolledOver: true, steps };
+        return steps === s.steps ? s : { ...s, steps };
+      });
+
+  const horizons = { ...goal.horizons };
+  for (const key of HORIZON_KEYS) horizons[key] = walk(horizons[key]);
+
+  return { ...goal, lastReset: day, wins: [...(goal.wins ?? []), ...wins], horizons };
 }
 
 /** The whole board, brought up to today. */
@@ -551,41 +487,14 @@ export function turnAll(goals: Goal[], day: string): Goal[] {
   return changed ? next : goals;
 }
 
-/**
- * Move a sub-action to another horizon by hand.
- *
- * Re-planning rather than picking: this is how something written against the
- * month becomes something written against the week. Dropped at the end of the
- * target list rather than the front, because a queue somebody arranged should
- * not be rearranged for them.
- */
-export function moveSub(
-  goal: Goal,
-  from: Horizon,
-  to: Horizon,
-  id: string
-): Goal {
-  if (from === to) return goal;
-  if (to === "today") return takeIntoToday(goal, from, id);
-  const item = goal.horizons[from].find((s) => s.id === id);
-  if (!item) return goal;
-
-  return {
-    ...goal,
-    horizons: {
-      ...goal.horizons,
-      [from]: goal.horizons[from].filter((s) => s.id !== id),
-      [to]: [...goal.horizons[to], { ...item, promotedFrom: undefined }],
-    },
-  };
-}
-
-/** Today's finished actions — the ones the drawer counts. */
+/** Today's finished work — the ones the drawer counts. */
 export function winsToday(goal: Goal): SubGoal[] {
-  return goal.horizons.today.filter((s) => s.done);
+  return shownAt(goal, "today")
+    .filter((p) => p.sub.done)
+    .map((p) => p.sub);
 }
 
 /** What is actually left to do today. */
 export function openToday(goal: Goal): SubGoal[] {
-  return goal.horizons.today.filter((s) => !s.done);
+  return picksOf(goal).map((p) => p.sub);
 }
