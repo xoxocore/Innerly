@@ -287,8 +287,10 @@ export function useTodayPlan() {
 
   const toggle = (item: TodayItem) => {
     if (item.source === "goal") {
-      // Through the cascade, so finishing the day's last action from the home
-      // page pulls the next one down exactly as it would from the goal itself.
+      // Through the engine, so a tick here settles the same way it would on the
+      // goal itself — a heading's steps follow it, and a finished line gives up
+      // the day's primary slot. Nothing new arrives to replace it: what today
+      // holds was chosen on the goal page, and only ever there.
       setGoals((prev) =>
         prev.map((g) => (g.id === item.goalId ? completeSub(g, "today", item.id) : g))
       );

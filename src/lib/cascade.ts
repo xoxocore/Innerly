@@ -1,26 +1,49 @@
 import { HORIZONS, type Goal, type Horizon, type Step, type SubGoal } from "./types";
 
 /**
- * The goal cascade, and the turn of the day.
+ * The goal cascade: architected top-down, executed bottom-up, chosen by hand.
  *
  * A goal is a chain of time — a year, then six months, then three, a month, a
- * week, today — and the point of writing it that way is that the far end
- * eventually becomes something to do this afternoon. These are the two rules
- * that make it move, kept as plain functions so they can be reasoned about and
- * tested without a browser anywhere near them.
+ * week — and it is built backwards, each rung a dependency of the one above it.
+ * Work then moves the other way: finishing something today moves the week,
+ * which moves the month.
+ *
+ * What does *not* happen anywhere in here is a machine deciding what somebody
+ * does today. An earlier version of this file promoted the next action into
+ * Today the moment the last one was ticked, and it was wrong in a way that took
+ * a while to see. A queue that refills itself is a queue you stop reading: the
+ * day arrives already decided, so the one moment in the whole system that asks
+ * a person to look at their week and choose is spent watching something appear.
+ * It also cannot know that today is a bad day, and will hand a full load to
+ * somebody who has none — so the plan and the person quietly come apart, and
+ * the plan is the one that gets abandoned.
+ *
+ * So promotion is a deliberate act — `takeIntoToday`, called because a person
+ * pressed something — and these are the rules that hold around it:
+ *
+ *   A. One primary. The single task that makes the rest easier or unnecessary.
+ *   B. Three at most. A day given more than it has room for manufactures
+ *      failure and forces the rollover it was trying to avoid.
+ *   C. A verifiable output. "Work on the UI" cannot be ticked honestly;
+ *      "Wrap long task sentences in the daily plan" can.
+ *
+ * Kept as plain functions so all of it can be reasoned about and tested without
+ * a browser anywhere near it.
  */
 
-/** Nearest first, which is the direction work flows. */
-const NEAREST_FIRST = [...HORIZONS].reverse().map((h) => h.key);
+/** Rule B, the capacity cap. Three high-leverage things is a full day. */
+export const DAILY_CAP = 3;
 
 const open = (list: SubGoal[]) => list.filter((s) => !s.done);
 
 const hasSteps = (s: SubGoal) => (s.steps?.length ?? 0) > 0;
 
+const HORIZON_KEYS = HORIZONS.map((h) => h.key);
+
 /**
  * The sub-goals whose steps are on today's list.
  *
- * A weekly goal broken into steps does not leave the week when its turn comes.
+ * A weekly goal broken into steps does not leave the week when it is picked.
  * It stays written where it was written — that is the plan, and watching the
  * plan empty itself is not the same as making progress — and only its steps
  * come down to be done. It is finished when they are, at which point it is
@@ -28,7 +51,7 @@ const hasSteps = (s: SubGoal) => (s.steps?.length ?? 0) > 0;
  */
 export function activeSubs(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
   const out: { sub: SubGoal; horizon: Horizon }[] = [];
-  for (const { key } of HORIZONS) {
+  for (const key of HORIZON_KEYS) {
     if (key === "today") continue;
     for (const s of goal.horizons[key]) {
       if (s.active && !s.done && hasSteps(s)) out.push({ sub: s, horizon: key });
@@ -37,7 +60,7 @@ export function activeSubs(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
   return out;
 }
 
-/** Everything today asks of you: its own actions, plus any active steps. */
+/** Everything today asks of you: its own actions, plus any borrowed steps. */
 export function todaysWork(goal: Goal): {
   sub: SubGoal;
   horizon: Horizon;
@@ -62,75 +85,208 @@ export function todaysWork(goal: Goal): {
   return [...own, ...borrowed];
 }
 
-/** Whether today still has anything on it, counting borrowed steps. */
-function todayIsClear(goal: Goal, horizons: Record<Horizon, SubGoal[]>): boolean {
-  if (open(horizons.today).length > 0) return false;
-  return activeSubs({ ...goal, horizons }).length === 0;
+/* ------------------------------------------------------------- the picks */
+
+/**
+ * What a goal is asking of today, counted the way a person feels it.
+ *
+ * A weekly goal being worked on is one thing you are doing, however many steps
+ * it happens to break into — so it counts once. Counting its steps separately
+ * would put a careful plan over the cap and a vague one under it, which is
+ * exactly backwards.
+ */
+export function picksOf(goal: Goal): { sub: SubGoal; horizon: Horizon }[] {
+  return [
+    ...open(goal.horizons.today).map((sub) => ({ sub, horizon: "today" as Horizon })),
+    ...activeSubs(goal),
+  ];
+}
+
+/** How full the day is, across every goal. Rule B is about the day, not a goal. */
+export function dayLoad(goals: Goal[]): number {
+  return goals.reduce((n, g) => n + picksOf(g).length, 0);
+}
+
+export function atCapacity(goals: Goal[]): boolean {
+  return dayLoad(goals) >= DAILY_CAP;
 }
 
 /**
- * Let the next thing fall into the gap that finishing something just made.
+ * Take something into today. The one way anything gets there.
  *
- * A tier asks to be refilled when it holds work and all of that work is done —
- * completion is the trigger, not emptiness. The difference matters a great
- * deal: a goal with one line written against next year, and nothing below it
- * yet, would otherwise drain itself down into this afternoon the moment it was
- * created, which is the opposite of what writing a year down is for.
+ * A sub-goal broken into steps lends them and stays where it was written; one
+ * that is a single action moves, and carries a note of where it came from so
+ * today can say what it is in service of.
  *
- * A tier emptied by the turn of the day is the exception, and says so by asking
- * — `refillEmpty` is how the morning arrives with the next action already
- * waiting instead of a blank board.
- *
- * It settles rather than making a single pass, so clearing Today and This Week
- * together carries the month's action the whole way down. That is what makes it
- * a waterfall rather than one step.
+ * The cap is not enforced here on purpose: this sees one goal and the cap is
+ * about the whole day, so the caller — which can count every goal — is the only
+ * thing in a position to say no, and the only thing able to say why.
  */
-export function cascade(goal: Goal, refillEmpty: Horizon[] = []): Goal {
-  const horizons = { ...goal.horizons };
-  let moved = false;
+export function takeIntoToday(goal: Goal, from: Horizon, id: string): Goal {
+  if (from === "today") return goal;
+  const sub = goal.horizons[from].find((s) => s.id === id);
+  if (!sub || sub.done) return goal;
 
-  // Each move can let the next one through, so this runs until it settles.
-  // Bounded by the number of tiers, which is the most anything can travel.
-  for (let pass = 0; pass < NEAREST_FIRST.length; pass++) {
-    let movedThisPass = false;
-
-    for (let i = 0; i < NEAREST_FIRST.length - 1; i++) {
-      const lower = NEAREST_FIRST[i];
-      const upper = NEAREST_FIRST[i + 1];
-
-      const held = horizons[lower];
-      const clear =
-        lower === "today"
-          ? todayIsClear(goal, horizons)
-          : open(held).length === 0;
-      const wants =
-        held.length > 0 || (lower === "today" && activeSubs({ ...goal, horizons }).length > 0)
-          ? clear
-          : refillEmpty.includes(lower);
-      if (!wants) continue;
-
-      const next = open(horizons[upper])[0];
-      if (!next) continue;
-
-      // A sub-goal broken into steps sends its steps down and stays where it
-      // was written; one that is a single action moves, as it always has.
-      if (lower === "today" && hasSteps(next)) {
-        horizons[upper] = horizons[upper].map((s) =>
-          s.id === next.id ? { ...s, active: true } : s
-        );
-      } else {
-        horizons[upper] = horizons[upper].filter((s) => s.id !== next.id);
-        horizons[lower] = [...horizons[lower], { ...next, promotedFrom: upper }];
-      }
-      movedThisPass = true;
-      moved = true;
-    }
-
-    if (!movedThisPass) break;
+  if (hasSteps(sub)) {
+    if (sub.active) return goal;
+    return {
+      ...goal,
+      horizons: {
+        ...goal.horizons,
+        [from]: goal.horizons[from].map((s) =>
+          s.id === id ? { ...s, active: true } : s
+        ),
+      },
+    };
   }
 
-  return moved ? { ...goal, horizons } : goal;
+  return {
+    ...goal,
+    horizons: {
+      ...goal.horizons,
+      [from]: goal.horizons[from].filter((s) => s.id !== id),
+      today: [...goal.horizons.today, { ...sub, promotedFrom: from }],
+    },
+  };
 }
+
+/**
+ * Put something back — the other half of choosing.
+ *
+ * A choice you cannot reverse is not really a choice, and a day that turns out
+ * to hold two things instead of three should be able to say so without anybody
+ * having to tick something they did not do.
+ */
+export function putBack(goal: Goal, horizon: Horizon, id: string): Goal {
+  const sub = goal.horizons[horizon].find((s) => s.id === id);
+  if (!sub) return goal;
+
+  // Borrowed steps: the sub-goal never left, so this only stops it lending.
+  if (horizon !== "today") {
+    if (!sub.active) return goal;
+    return {
+      ...goal,
+      horizons: {
+        ...goal.horizons,
+        [horizon]: goal.horizons[horizon].map((s) =>
+          s.id === id ? { ...s, active: undefined, primary: undefined } : s
+        ),
+      },
+    };
+  }
+
+  const home = sub.promotedFrom;
+  if (!home) return goal;
+  return {
+    ...goal,
+    horizons: {
+      ...goal.horizons,
+      today: goal.horizons.today.filter((s) => s.id !== id),
+      [home]: [
+        ...goal.horizons[home],
+        { ...sub, promotedFrom: undefined, primary: undefined, rolledOver: undefined },
+      ],
+    },
+  };
+}
+
+/* ------------------------------------------------------- Rule A: primary */
+
+/** The one thing today, if it has been named. */
+export function primaryOf(goals: Goal[]): { goal: Goal; sub: SubGoal } | null {
+  for (const goal of goals) {
+    for (const { sub } of picksOf(goal)) {
+      if (sub.primary) return { goal, sub };
+    }
+  }
+  return null;
+}
+
+/**
+ * Name today's bottleneck, or take the name back.
+ *
+ * Across every goal, because a day has one of these. Setting a second would
+ * mean two, and a day with two bottlenecks has none — so this clears the old
+ * one wherever it happens to live rather than asking anybody to go and find it.
+ */
+export function setPrimary(goals: Goal[], goalId: string, subId: string): Goal[] {
+  // Pressing the one that already holds it takes the name back, rather than
+  // leaving a day permanently insisting one of its three matters most.
+  const already = goals.some(
+    (g) =>
+      g.id === goalId &&
+      HORIZON_KEYS.some((k) =>
+        g.horizons[k].some((s) => s.id === subId && s.primary)
+      )
+  );
+
+  return goals.map((goal) => {
+    let touched = false;
+    const horizons = { ...goal.horizons };
+    for (const key of HORIZON_KEYS) {
+      let keyTouched = false;
+      const next = horizons[key].map((s) => {
+        const want = goal.id === goalId && s.id === subId && !already;
+        if (!!s.primary === want) return s;
+        keyTouched = true;
+        return { ...s, primary: want ? true : undefined };
+      });
+      if (keyTouched) {
+        horizons[key] = next;
+        touched = true;
+      }
+    }
+    return touched ? { ...goal, horizons } : goal;
+  });
+}
+
+/* ----------------------------------------------- Rule C: a real deliverable */
+
+/**
+ * Openers that describe an activity rather than a result.
+ *
+ * Every one of these can be true all day without anything having happened,
+ * which is what makes them impossible to tick honestly — and a list you cannot
+ * tick honestly stops being read.
+ */
+const ACTIVITY_OPENERS = [
+  /^work(ing)? on\b/,
+  /^think(ing)? about\b/,
+  /^focus(ing)? on\b/,
+  /^look (at|into)\b/,
+  /^continue\b/,
+  /^carry on\b/,
+  /^keep (going|at)\b/,
+  /^spend (some )?time\b/,
+  /^try to\b/,
+  /^start(ing)? (on|with)\b/,
+  /^do (some|more)\b/,
+  /^get (better|going|started)\b/,
+  /^be better\b/,
+  /^improve\b/,
+  /^sort out\b/,
+  /^deal with\b/,
+];
+
+/**
+ * Whether a line names an activity instead of an output — Rule C.
+ *
+ * Advice, never a rule: this returns a hint for the interface to show quietly
+ * beside the field, and nothing anywhere refuses to save on the strength of it.
+ * A guess about somebody's wording is not grounds for standing between them and
+ * their own plan, and the guess will sometimes be wrong.
+ */
+export function isVague(title: string): boolean {
+  const t = title.trim().toLowerCase();
+  if (!t) return false;
+  // One word is a subject, not a deliverable: "onboarding", "emails".
+  if (!/\s/.test(t)) return true;
+  return ACTIVITY_OPENERS.some((re) => re.test(t));
+}
+
+export const VAGUE_HINT = "Name what will exist when it's done, not what you'll be doing.";
+
+/* ------------------------------------------------------------ completion */
 
 /**
  * A sub-goal broken into steps is finished exactly when its steps are.
@@ -151,12 +307,14 @@ export function settle(sub: SubGoal): SubGoal {
     done,
     completedAt: done ? new Date().toISOString() : undefined,
     // Finished work is not work in progress. The line stays where it is,
-    // struck through, but it stops asking anything of today.
+    // struck through, but it stops asking anything of today and gives up the
+    // day's one primary slot rather than holding it.
     active: done ? undefined : sub.active,
+    primary: done ? undefined : sub.primary,
   };
 }
 
-/** Ticking a sub-action, with whatever the cascade makes of it. */
+/** Ticking a sub-action. Nothing takes its place; that is tomorrow's choice. */
 export function completeSub(goal: Goal, horizon: Horizon, id: string): Goal {
   const list = goal.horizons[horizon].map((s) => {
     if (s.id !== id) return s;
@@ -165,19 +323,15 @@ export function completeSub(goal: Goal, horizon: Horizon, id: string): Goal {
       ...s,
       done,
       completedAt: done ? new Date().toISOString() : undefined,
+      active: done ? undefined : s.active,
+      primary: done ? undefined : s.primary,
       // Ticking a heading means its parts are done, and unticking it means
       // they are not. Leaving the steps behind would show a finished line
       // sitting above unfinished work.
       steps: s.steps?.map((t) => ({ ...t, done })),
     };
   });
-  const next = { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
-  // Only a tick that cleared today's own work has earned the next thing. A
-  // tick somewhere further out has not, or a month's action would fall
-  // straight past the week it was supposed to be planned into.
-  const wasTodays =
-    horizon === "today" || goal.horizons[horizon].find((s) => s.id === id)?.active === true;
-  return cascade(next, wasTodays ? ["today"] : []);
+  return { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
 }
 
 /** Ticking one step, and letting its heading follow. */
@@ -197,15 +351,7 @@ export function completeStep(
         })
       : s
   );
-  // A step is only ever today's work when its sub-goal is the one being
-  // worked on, which is the only case that may refill an empty day.
-  const wasTodays =
-    horizon === "today" ||
-    goal.horizons[horizon].find((s) => s.id === subId)?.active === true;
-  return cascade(
-    { ...goal, horizons: { ...goal.horizons, [horizon]: list } },
-    wasTodays ? ["today"] : []
-  );
+  return { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
 }
 
 /** Adding, renaming and removing the parts of a sub-goal. */
@@ -218,7 +364,7 @@ export function editSteps(
   const list = goal.horizons[horizon].map((s) =>
     s.id === subId ? settle({ ...s, steps: change(s.steps ?? []) }) : s
   );
-  return cascade({ ...goal, horizons: { ...goal.horizons, [horizon]: list } });
+  return { ...goal, horizons: { ...goal.horizons, [horizon]: list } };
 }
 
 /** How far through its steps a sub-goal is, or null when it has none. */
@@ -226,6 +372,8 @@ export function stepProgress(sub: SubGoal): { done: number; total: number } | nu
   if (!sub.steps || sub.steps.length === 0) return null;
   return { done: sub.steps.filter((t) => t.done).length, total: sub.steps.length };
 }
+
+/* -------------------------------------------------------- the day's turn */
 
 /**
  * Carry a goal's Today list into a new day.
@@ -235,6 +383,10 @@ export function stepProgress(sub: SubGoal): { done: number; total: number } | nu
  * last week's undone task as today's fresh idea. Anything finished moves into
  * the record of wins, where it stops taking up room on a working list but is
  * still there to look back at.
+ *
+ * Nothing new is added. The morning is meant to arrive with a short honest
+ * list and a decision to make, not with a full one somebody else wrote — and a
+ * board that filled itself overnight would have made that decision already.
  *
  * A goal that has never been through a day turn is only stamped with the date.
  * Nothing is carried or archived on that first pass — the list has not sat
@@ -250,17 +402,12 @@ export function turnDay(goal: Goal, day: string): Goal {
     .filter((s) => !s.done)
     .map((s) => (s.rolledOver ? s : { ...s, rolledOver: true }));
 
-  return cascade(
-    {
-      ...goal,
-      lastReset: day,
-      wins: [...(goal.wins ?? []), ...finished],
-      horizons: { ...goal.horizons, today: carried },
-    },
-    // A day cleared by finishing everything has earned the next action; a day
-    // that was simply never used has not, so nothing is moved for it.
-    finished.length > 0 ? ["today"] : []
-  );
+  return {
+    ...goal,
+    lastReset: day,
+    wins: [...(goal.wins ?? []), ...finished],
+    horizons: { ...goal.horizons, today: carried },
+  };
 }
 
 /** The whole board, brought up to today. */
@@ -277,10 +424,10 @@ export function turnAll(goals: Goal[], day: string): Goal[] {
 /**
  * Move a sub-action to another horizon by hand.
  *
- * The cascade decides what happens on its own; this is the person overruling
- * it, which they must always be able to do. Dropped at the end of the target
- * list rather than the front, because a queue somebody arranged should not be
- * rearranged for them.
+ * Re-planning rather than picking: this is how something written against the
+ * month becomes something written against the week. Dropped at the end of the
+ * target list rather than the front, because a queue somebody arranged should
+ * not be rearranged for them.
  */
 export function moveSub(
   goal: Goal,
@@ -289,6 +436,7 @@ export function moveSub(
   id: string
 ): Goal {
   if (from === to) return goal;
+  if (to === "today") return takeIntoToday(goal, from, id);
   const item = goal.horizons[from].find((s) => s.id === id);
   if (!item) return goal;
 
@@ -297,7 +445,6 @@ export function moveSub(
     horizons: {
       ...goal.horizons,
       [from]: goal.horizons[from].filter((s) => s.id !== id),
-      // Moved on purpose, so it is no longer something the cascade did.
       [to]: [...goal.horizons[to], { ...item, promotedFrom: undefined }],
     },
   };

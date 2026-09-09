@@ -72,8 +72,13 @@ export type SubGoal = {
   completedAt?: string;
   /** Carried into a new day without having been finished. */
   rolledOver?: boolean;
-  /** The longer horizon the cascade dropped this down from. */
+  /** The longer horizon this was taken down from — what the tag names. */
   promotedFrom?: Horizon;
+  /**
+   * The one thing today that makes the rest easier or unnecessary. At most one
+   * across the whole day, which is the point of it.
+   */
+  primary?: boolean;
 };
 
 export type Goal = {
@@ -101,14 +106,57 @@ export function emptyHorizons(): Record<Horizon, SubGoal[]> {
   };
 }
 
-// Order + labels for the thread timeline (top = furthest out).
-export const HORIZONS: { key: Horizon; label: string; addLabel: string }[] = [
-  { key: "year", label: "1 Year", addLabel: "Add sub-goal" },
-  { key: "sixMonths", label: "6 Months", addLabel: "Add sub-goal" },
-  { key: "threeMonths", label: "3 Months", addLabel: "Add sub-goal" },
-  { key: "oneMonth", label: "This Month", addLabel: "Add sub-goal" },
-  { key: "thisWeek", label: "Weekly Goal", addLabel: "Add sub-goal" },
-  { key: "today", label: "Today", addLabel: "Add action" },
+/**
+ * The ladder, furthest out first — which is the order it is built in.
+ *
+ * `prompt` is the question each tier asks of the one above it, and it is doing
+ * real work. A plan is only a plan if every rung is a dependency of the rung
+ * above: six months has to be what must be true for the year to happen, not
+ * merely another wish filed under a nearer date. Asking the question in the
+ * empty field is the cheapest way to make that the habit.
+ */
+export const HORIZONS: {
+  key: Horizon;
+  label: string;
+  addLabel: string;
+  prompt: string;
+}[] = [
+  {
+    key: "year",
+    label: "1 Year",
+    addLabel: "Add sub-goal",
+    prompt: "Where do you want to be in a year?",
+  },
+  {
+    key: "sixMonths",
+    label: "6 Months",
+    addLabel: "Add sub-goal",
+    prompt: "What has to be true in 6 months for the year to happen?",
+  },
+  {
+    key: "threeMonths",
+    label: "3 Months",
+    addLabel: "Add sub-goal",
+    prompt: "And in 3 months, for that to happen?",
+  },
+  {
+    key: "oneMonth",
+    label: "This Month",
+    addLabel: "Add sub-goal",
+    prompt: "What has to be done this month for that?",
+  },
+  {
+    key: "thisWeek",
+    label: "Weekly Goal",
+    addLabel: "Add sub-goal",
+    prompt: "What has to be done this week for that?",
+  },
+  {
+    key: "today",
+    label: "Today",
+    addLabel: "Add action",
+    prompt: "Something finishable, that you could show someone",
+  },
 ];
 
 // Short timing labels used on the calendar item pills.
@@ -249,6 +297,7 @@ function normSub(s: unknown): SubGoal | null {
     completedAt: typeof o.completedAt === "string" ? o.completedAt : undefined,
     rolledOver: o.rolledOver === true ? true : undefined,
     promotedFrom: isHorizon(o.promotedFrom) ? o.promotedFrom : undefined,
+    primary: o.primary === true ? true : undefined,
   };
 }
 
