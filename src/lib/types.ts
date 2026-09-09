@@ -63,6 +63,14 @@ export type SubGoal = {
   /** Its actions. Always optional: a line that is one thing stays one line. */
   steps?: SubGoal[];
   /**
+   * An emoji standing for this line, chosen by whoever wrote it.
+   *
+   * Not decoration. A ladder of six tiers is a page of same-shaped sentences,
+   * and the eye needs somewhere to land — a glyph is recognised before a word
+   * is read, so this is what makes a plan scannable rather than merely legible.
+   */
+  icon?: string;
+  /**
    * The nearer tier this line has been pushed down to, if any.
    *
    * It does not leave the target it belongs to — the plan is the plan and stays
@@ -313,6 +321,9 @@ function normSub(s: unknown, depth = 0): SubGoal | null {
     steps: Array.isArray(o.steps)
       ? (o.steps.map((t) => normSub(t, depth + 1)).filter(Boolean) as SubGoal[])
       : undefined,
+    // Bounded: an emoji is one or two glyphs, and a saved value that is really
+    // a paragraph would be drawn as a wall of text inside a 24px circle.
+    icon: typeof o.icon === "string" && o.icon.length <= 8 ? o.icon : undefined,
     at: isHorizon(o.at) ? o.at : undefined,
     completedAt: typeof o.completedAt === "string" ? o.completedAt : undefined,
     rolledOver: o.rolledOver === true ? true : undefined,

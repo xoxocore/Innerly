@@ -61,6 +61,19 @@ const flat = async (p) =>
 const line = async (p, id) => (await flat(p)).find((s) => s.id === id);
 
 /**
+ * Choose something from one row's overflow menu.
+ *
+ * Most of what a row can do lives behind that mark now — seven controls on
+ * every line of a six-tier plan is most of why the page read as loud — so a
+ * test that wants any of them has to open it the way a person would.
+ */
+const menu = async (p, id, item) => {
+  await ctl(p, id).getByRole("button", { name: /^More for / }).click();
+  await p.waitForTimeout(250);
+  await p.getByRole("menuitem", { name: item }).click();
+};
+
+/**
  * The titles shown in one tier.
  *
  * Titles are editable fields, so their words are values rather than text —
@@ -83,7 +96,8 @@ const GOAL = {
   // Yesterday, so the day turn has a night to carry things across.
   lastReset: "2020-01-01",
   horizons: {
-    year: [{ id: "s1", title: "Get 100,000 active users to Innerly", done: false }],
+    year: [{ id: "y1", title: "Get 100,000 active users to Innerly", done: false,
+      steps: [{ id: "y1a", title: "Write the launch post", done: false }] }],
     sixMonths: [{ id: "s2", title: "Get 20,000 active users to Innerly", done: false }],
     threeMonths: [],
     oneMonth: [
@@ -103,7 +117,7 @@ const GOAL = {
 
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1194/chrome-linux/chrome" });
 
-async function open(goal = GOAL) {
+async function open(goal = GOAL, opts = {}) {
   const p = await (await b.newContext({
     viewport: { width: 1280, height: 950 }, deviceScaleFactor: 2,
   })).newPage();
@@ -123,6 +137,9 @@ async function open(goal = GOAL) {
   await p.addInitScript((g) => {
     localStorage.setItem("innerly:goals", JSON.stringify([g]));
   }, goal);
+  if (opts.night) {
+    await p.addInitScript(() => localStorage.setItem("innerly:night", "true"));
+  }
 
   await p.goto("http://localhost:3000/", { waitUntil: "networkidle" });
   await p.waitForTimeout(600);
@@ -170,23 +187,54 @@ async function openGoal(p) {
   const subSize = await sub.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
   check("a sub-goal reads at the app's own size", subSize <= 13.5, `${subSize}px`);
 
-  const card = await p.locator("[data-tier=year]").evaluate((el) => {
-    const cs = getComputedStyle(el);
-    const label = el.querySelector("p");
-    return {
-      padTop: parseFloat(cs.paddingTop),
-      radius: parseFloat(cs.borderTopLeftRadius),
-      label: parseFloat(getComputedStyle(label).fontSize),
-    };
-  });
-  check("the horizon cards are not oversized", card.padTop <= 14, `${card.padTop}px padding`);
-  check("...with the app's own corner", card.radius <= 24, `${card.radius}px radius`);
-  check("...and a quiet label", card.label <= 11, `${card.label}px`);
+  const label = await p
+    .locator("[data-tier=year] span")
+    .first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  check("...and a quiet tier label", label <= 11, `${label}px`);
 
-  const tall = await p.locator("[data-tier=year]").evaluate(
-    (el) => el.getBoundingClientRect().height
-  );
-  check("a card with one sub-goal stays compact", tall < 150, `${Math.round(tall)}px tall`);
+  // Depth is carried by weight rather than by more chrome, so a target has to
+  // read as a heading and its actions as parts of it. Same size for both was
+  // most of why the thread read as a wall of identical sentences.
+  const targetSize = await p
+    .locator(`[data-row=y1] input`)
+    .first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  const actionSize = await p
+    .locator(`[data-row=y1a] input`)
+    .first()
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  check("a target outranks its actions", targetSize > actionSize,
+    `${targetSize}px vs ${actionSize}px`);
+
+  // One soft field per target, grouping it with its actions — and nothing
+  // drawn around the tier itself, which used to be a third nested container.
+  const row = await p.locator("[data-row=y1]").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { bg: cs.backgroundColor, radius: parseFloat(cs.borderTopLeftRadius) };
+  });
+  check("a target sits on a field of its own", !/rgba\(0, 0, 0, 0\)/.test(row.bg), row.bg);
+  check("...with the app's own corner", row.radius <= 28, `${row.radius}px`);
+
+  const tier = await p.locator("[data-tier=year]").evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return { bg: cs.backgroundColor, border: cs.borderTopWidth };
+  });
+  check("...and the tier around it draws nothing",
+    /rgba\(0, 0, 0, 0\)/.test(tier.bg) && parseFloat(tier.border) === 0,
+    `${tier.bg} / ${tier.border}`);
+
+  // Distance is colour: the far end of the ladder is paler than the near end.
+  const alpha = (bg) => {
+    const m = bg.match(/[\d.]+/g) ?? [];
+    return m.length === 4 ? parseFloat(m[3]) : 1;
+  };
+  const far = await p.locator("[data-row=y1]")
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  const near = await p.locator("[data-row=m1]")
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  check("a year away is paler than this month", alpha(far) < alpha(near),
+    `${far} vs ${near}`);
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -347,12 +395,12 @@ async function openGoal(p) {
     h.today.filter((s) => !s.done).length === 0,
     JSON.stringify(h.today.filter((s) => !s.done).map((s) => s.title)));
   check("...and the week's work stays in the week", h.thisWeek.some((s) => s.id === "w1"));
-  check("...and the year's stays a year away", h.year.some((s) => s.id === "s1"));
+  check("...and the year's stays a year away", h.year.some((s) => s.id === "y1"));
 
   const after = await p.locator("main").innerText();
   check("an empty day asks the question instead of answering it",
     /which one thing today makes the rest easier/i.test(after));
-  check("...and the count says the day is empty", /0 \/ 3/.test(after));
+  check("...and the count says the day is empty", /0\/3/.test(after));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -368,8 +416,8 @@ async function openGoal(p) {
   const arrow = (id) => ctl(p, id).getByRole("button", { name: /^Push /});
 
   check("a year's target offers six months",
-    /6 Months/.test(await arrow("s1").innerText()),
-    await arrow("s1").innerText());
+    /6 Months/.test(await arrow("y1").innerText()),
+    await arrow("y1").innerText());
   check("a six-month target offers three months",
     /3 Months/.test(await arrow("s2").innerText()),
     await arrow("s2").innerText());
@@ -387,10 +435,10 @@ async function openGoal(p) {
     `${await p.getByRole("button", { name: /Push .* to Today/ }).count()} offered`);
 
   // Press it, and it goes exactly one rung.
-  await arrow("s1").click();
+  await arrow("y1").click();
   await p.waitForTimeout(800);
   check("pressing it moves the line one rung",
-    (await line(p, "s1")).at === "sixMonths", String((await line(p, "s1")).at));
+    (await line(p, "y1")).at === "sixMonths", String((await line(p, "y1")).at));
   check("...and it is drawn in that tier",
     (await titlesIn(p, "sixMonths")).includes("Get 100,000 active users to Innerly"),
     JSON.stringify(await titlesIn(p, "sixMonths")));
@@ -398,15 +446,15 @@ async function openGoal(p) {
     !(await titlesIn(p, "today")).some((t) => /100,000/.test(t)),
     JSON.stringify(await titlesIn(p, "today")));
 
-  await ctl(p, "s1").getByRole("button", { name: /^Push / }).click();
+  await ctl(p, "y1").getByRole("button", { name: /^Push / }).click();
   await p.waitForTimeout(800);
   check("pressing again moves it one more rung",
-    (await line(p, "s1")).at === "threeMonths", String((await line(p, "s1")).at));
+    (await line(p, "y1")).at === "threeMonths", String((await line(p, "y1")).at));
 
-  await ctl(p, "s1").getByRole("button", { name: /Send .* back a tier/ }).click();
+  await menu(p, "y1", /Send back a tier/);
   await p.waitForTimeout(800);
   check("sending it back moves it back one rung, not all the way",
-    (await line(p, "s1")).at === "sixMonths", String((await line(p, "s1")).at));
+    (await line(p, "y1")).at === "sixMonths", String((await line(p, "y1")).at));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
@@ -600,19 +648,19 @@ async function openGoal(p) {
 
   const count = () => p.locator("[data-tier=today]").innerText();
   check("the day starts holding the one thing carried over",
-    /1 \/ 3/.test(await count()), (await count()).split("\n")[1] ?? "");
+    /1\/3/.test(await count()), (await count()).split("\n")[1] ?? "");
 
   const toToday = () => p.getByRole("button", { name: /Push .* to Today/ });
   await toToday().first().click();
   await p.waitForTimeout(700);
-  check("...two", /2 \/ 3/.test(await count()), (await count()).split("\n")[1] ?? "");
+  check("...two", /2\/3/.test(await count()), (await count()).split("\n")[1] ?? "");
 
   // Bring another line down to the week so there is a third thing to pick.
   await ctl(p, "m1").getByRole("button", { name: /Push .* to Weekly Goal/ }).click();
   await p.waitForTimeout(700);
   await ctl(p, "m1").getByRole("button", { name: /Push .* to Today/ }).click();
   await p.waitForTimeout(700);
-  check("...three", /3 \/ 3/.test(await count()), (await count()).split("\n")[1] ?? "");
+  check("...three", /3\/3/.test(await count()), (await count()).split("\n")[1] ?? "");
 
   const before = (await stored(p)).today.length;
   check("a fourth is not offered at all",
@@ -772,6 +820,184 @@ async function openGoal(p) {
   check("...though the tier itself still takes a fresh action",
     (await p.locator("[data-tier=today]")
       .getByRole("button", { name: /Add action/ }).count()) === 1);
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------------- the emoji, and where it sticks */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  // A target's mark is its emoji, because a line with parts cannot be ticked —
+  // its ring is read, not pressed. So the mark opens the grid.
+  await ctl(p, "m1").getByRole("button", { name: /Choose an emoji/ }).click();
+  await p.waitForTimeout(400);
+  const grid = p.getByRole("button", { name: "Nature" });
+  check("a target's mark opens the emoji grid", (await grid.count()) === 1);
+
+  await grid.click();
+  await p.waitForTimeout(300);
+  // The grid itself, not "some button near the tabs" — the tab strip is also
+  // buttons, and picking one of those would have set nothing and said nothing.
+  const cell = p.locator("div[class*='grid-cols-8'] button").first();
+  const glyph = (await cell.innerText()).trim();
+  await cell.click();
+  await p.waitForTimeout(700);
+
+  check("picking one writes it to the line",
+    !!(await line(p, "m1")).icon, JSON.stringify((await line(p, "m1")).icon));
+  check("...the one that was picked",
+    (await line(p, "m1")).icon === glyph,
+    `${(await line(p, "m1")).icon} vs ${glyph}`);
+  check("...and the grid closes behind it",
+    (await p.getByRole("button", { name: "Nature" }).count()) === 0);
+  check("...and it shows on the row",
+    (await ctl(p, "m1").innerText()).includes(glyph),
+    (await ctl(p, "m1").innerText()).replace(/\n/g, " ").slice(0, 40));
+
+  // A line with no parts keeps its tick, so its emoji comes off the menu.
+  await menu(p, "t1", /Choose an emoji/);
+  await p.waitForTimeout(400);
+  check("a line with a tick can still be given one",
+    (await p.getByRole("button", { name: "Nature" }).count()) === 1);
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(300);
+
+  check("...and its tick is still a tick",
+    (await ctl(p, "t1").getByRole("button", { name: "Mark complete" }).count()) === 1);
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------------------- what the row still says */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  // Three things out loud and no more: the mark, the words, the one move.
+  const buttons = await ctl(p, "m1").getByRole("button").evaluateAll((els) =>
+    els.map((e) => e.getAttribute("aria-label") ?? e.textContent?.trim() ?? "")
+  );
+  check("a row shows three controls, not seven", buttons.length <= 4,
+    JSON.stringify(buttons));
+
+  // The rest are one press away, in a mark that never moves or resizes.
+  await ctl(p, "m1").getByRole("button", { name: /^More for / }).click();
+  await p.waitForTimeout(300);
+  const items = await p.getByRole("menuitem").evaluateAll((els) =>
+    els.map((e) => e.textContent?.trim())
+  );
+  check("...and the others are on the menu",
+    items.some((t) => /emoji/i.test(t)) &&
+      items.some((t) => /Add an action/i.test(t)) &&
+      items.some((t) => /Delete/i.test(t)),
+    JSON.stringify(items));
+
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(300);
+
+  // Deleting from the menu really deletes.
+  await menu(p, "a2", /Delete/);
+  await p.waitForTimeout(700);
+  check("delete on the menu removes the line",
+    (await line(p, "a2")) === undefined);
+  check("...and only that line",
+    !!(await line(p, "a1")) && !!(await line(p, "m1")));
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ----------------------------------------- a tier can be folded out of the way */
+{
+  const { p, errs } = await open();
+  await openGoal(p);
+
+  const yearRows = () => p.locator("[data-tier=year] [data-row]").count();
+  check("the year starts open", (await yearRows()) > 0);
+
+  await p.getByRole("button", { name: /Hide 1 Year/ }).click();
+  await p.waitForTimeout(500);
+  check("folding a tier puts its plan away", (await yearRows()) === 0);
+  check("...but the tier is still there to open",
+    (await p.getByRole("button", { name: /Show 1 Year/ }).count()) === 1);
+
+  await p.getByRole("button", { name: /Show 1 Year/ }).click();
+  await p.waitForTimeout(500);
+  check("...and it comes back unchanged", (await yearRows()) > 0);
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* -------------------------------------------- Jelly asks the day's question */
+{
+  const { p, errs } = await open({
+    ...GOAL,
+    horizons: { ...GOAL.horizons, today: [] },
+  });
+  await openGoal(p);
+
+  const today = p.locator("[data-tier=today]");
+  check("an empty day asks rather than answers",
+    /which one thing today makes the rest easier/i.test(await today.innerText()));
+  check("...and Jelly asks it",
+    (await today.locator("img").count()) > 0,
+    `${await today.locator("img").count()} found`);
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* ------------------------------------------------ and again with the lights off */
+{
+  // Night is a class on <html>, not Tailwind's dark: variant, so every colour
+  // that is set from JavaScript has to be checked here or it silently keeps
+  // its light-mode value. The ink shade is built for a pale tint and vanishes
+  // on a dark one — this is the check that would have caught that.
+  const { p, errs } = await open(GOAL, { night: true });
+  await openGoal(p);
+
+  const lum = (c) => {
+    const [r, g, b] = (c.match(/[\d.]+/g) ?? []).map(Number);
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  };
+
+  const page = await p.locator("body").evaluate(
+    (el) => getComputedStyle(el).backgroundColor
+  );
+  check("night mode really is dark", lum(page) < 0.3, page);
+
+  const chip = await p
+    .locator("[data-row=m1] button", { hasText: "Weekly Goal" })
+    .first()
+    .evaluate((el) => getComputedStyle(el).color);
+  check("the push chip stays readable on a dark field", lum(chip) > 0.35, chip);
+
+  const label = await p
+    .locator("[data-tier=oneMonth] span")
+    .first()
+    .evaluate((el) => getComputedStyle(el).color);
+  check("...and so does the tier label", lum(label) > 0.3, label);
+
+  // The count span specifically, not a wrapper that happens to contain it —
+  // the wrapper inherits the page's ordinary text colour and would pass here
+  // while the number itself was unreadable.
+  const count = await p
+    .locator("[data-row=m1] > div span[class*=tabular-nums]")
+    .first()
+    .evaluate((el) => getComputedStyle(el).color);
+  check("...and the count beside a target", lum(count) > 0.3, count);
+
+  // The goal under test is blue: #007AFF is the shade meant for dark grounds,
+  // #0060DF the one meant for pale ones. Naming them is sharper than a
+  // luminance threshold, which an alpha-blended colour can slip past.
+  check("...using the shade built for a dark ground, not the pale-ground one",
+    [chip, label, count].every((c) => !/0, 96, 223/.test(c)),
+    JSON.stringify([chip, label, count]));
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
