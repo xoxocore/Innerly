@@ -13,7 +13,7 @@ import {
   Plus,
   Trash,
 } from "lucide-react";
-import { Mark } from "@/components/innerly/mark";
+import { PlanMark } from "@/components/innerly/plan-mark";
 import { cn } from "@/lib/utils";
 import {
   GOAL_COLORS,
@@ -330,8 +330,8 @@ export function GoalThread({
                           somebody. It appears only on an empty day, which is
                           the one moment it is a question and not a scold. */}
                       {today && picksOf(goal).length === 0 && (
-                        <div className="mt-2.5 flex items-start gap-2.5 rounded-2xl bg-background/70 px-3 py-2.5">
-                          <Mark size={26} />
+                        <div className="mt-2.5 flex items-start gap-3 rounded-2xl bg-background/70 px-3 py-2.5">
+                          <PlanMark size={52} />
                           <p className="text-[12px] leading-relaxed text-muted-foreground">
                             Nothing picked yet. Read your Weekly Goal and ask:
                             which one thing today makes the rest easier — or

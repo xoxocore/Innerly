@@ -119,7 +119,9 @@ const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-119
 
 async function open(goal = GOAL, opts = {}) {
   const p = await (await b.newContext({
-    viewport: { width: 1280, height: 950 }, deviceScaleFactor: 2,
+    viewport: { width: 1280, height: 950 },
+    deviceScaleFactor: 2,
+    reducedMotion: opts.reducedMotion ? "reduce" : undefined,
   })).newPage();
   const errs = [];
   p.on("pageerror", (e) => errs.push(String(e)));
@@ -944,9 +946,85 @@ async function openGoal(p) {
   const today = p.locator("[data-tier=today]");
   check("an empty day asks rather than answers",
     /which one thing today makes the rest easier/i.test(await today.innerText()));
-  check("...and Jelly asks it",
-    (await today.locator("img").count()) > 0,
-    `${await today.locator("img").count()} found`);
+  check("...and Jelly asks it, with her checklist",
+    (await today.locator('[data-jelly=body]').count()) === 1);
+  check("...and a pencil in a layer of its own",
+    (await today.locator('[data-jelly=pencil]').count()) === 1);
+
+  // The layers have to sit exactly on top of each other, or the pencil is back
+  // where it was drawn but an inch to the left of where it was drawn.
+  //
+  // Measured as layout, not as a painted rectangle: the pencil is mid-swing
+  // while this runs, and a rotated element's bounding box is bigger than the
+  // element. The offset box ignores the transform, which is the question here.
+  const boxes = await today.locator("[data-jelly]").evaluateAll((els) =>
+    els
+      .filter((e) => e.tagName === "IMG")
+      .map((e) => [e.offsetLeft, e.offsetTop, e.offsetWidth, e.offsetHeight])
+  );
+  check("...laid one exactly over the other",
+    boxes.length === 2 && JSON.stringify(boxes[0]) === JSON.stringify(boxes[1]),
+    JSON.stringify(boxes));
+
+  /* A drawing that never moves and a drawing whose animation snaps straight to
+     its last frame look identical in a screenshot, and an assertion that the
+     element exists passes for both. So the pencil is sampled frame by frame. */
+  const frames = await today.locator("[data-jelly=pencil]").evaluate(
+    (el) =>
+      new Promise((done) => {
+        const seen = [];
+        let n = 0;
+        const tick = () => {
+          seen.push(getComputedStyle(el).transform);
+          if (++n < 120) requestAnimationFrame(tick);
+          else done(seen);
+        };
+        requestAnimationFrame(tick);
+      })
+  );
+  const distinct = new Set(frames);
+  check("the pencil actually moves, frame to frame", distinct.size > 8,
+    `${distinct.size} distinct transforms over ${frames.length} frames`);
+  check("...turning, not just sliding",
+    [...distinct].some((t) => /matrix\((-?[\d.]+), (-?[\d.]+)/.test(t) &&
+      Math.abs(parseFloat(RegExp.$2)) > 0.02),
+    [...distinct].slice(0, 3).join(" | "));
+  check("...and coming back to rest",
+    frames.includes("none") || frames.some((t) => /matrix\(1, 0, 0, 1/.test(t)),
+    frames[0]);
+
+  // She blinks here the way she blinks everywhere else.
+  const lids = await today.locator("[data-jelly=lid]").count();
+  check("...and she has two eyelids to blink with", lids === 2, `${lids}`);
+
+  check("no page errors", errs.length === 0, errs[0]);
+  await p.close();
+}
+
+/* --------------------------------------- and holds still if asked to */
+{
+  const { p, errs } = await open(
+    { ...GOAL, horizons: { ...GOAL.horizons, today: [] } },
+    { reducedMotion: true }
+  );
+  await openGoal(p);
+
+  const frames = await p.locator("[data-jelly=pencil]").evaluate(
+    (el) =>
+      new Promise((done) => {
+        const seen = [];
+        let n = 0;
+        const tick = () => {
+          seen.push(getComputedStyle(el).transform);
+          if (++n < 60) requestAnimationFrame(tick);
+          else done(seen);
+        };
+        requestAnimationFrame(tick);
+      })
+  );
+  check("no writing for anyone who asked for less movement",
+    new Set(frames).size === 1, [...new Set(frames)].join(" | "));
+  check("...but Jelly is still there", (await p.locator("[data-jelly=body]").count()) === 1);
 
   check("no page errors", errs.length === 0, errs[0]);
   await p.close();
