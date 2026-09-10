@@ -180,6 +180,12 @@ export function Settings() {
               checked={prefs.dailyReminder}
               onChange={() => update({ dailyReminder: !prefs.dailyReminder })}
             />
+            <Toggle
+              label={c.notifMissedLabel}
+              desc={c.notifMissedDesc}
+              checked={prefs.missedCheckIn !== false}
+              onChange={() => update({ missedCheckIn: prefs.missedCheckIn === false })}
+            />
           </div>
         </Section>
 

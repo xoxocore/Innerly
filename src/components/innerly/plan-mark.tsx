@@ -11,6 +11,7 @@ import {
   PLAN_SHUT,
 } from "@/lib/plan-jelly";
 import { cn } from "@/lib/utils";
+import { CLOSING, OPENING, useBlink } from "./use-blink";
 
 /**
  * Jelly, with her checklist, writing.
@@ -39,19 +40,6 @@ const REST_MAX = 5200;
 /** How far the pencil turns, in degrees. Small: this is writing, not waving. */
 const SWING = 7;
 
-/** A blink, in milliseconds. Human ones are about this long. */
-const CLOSING = 90;
-const HELD = 60;
-const OPENING = 130;
-
-/** Blinks per blink, and the beat between them. */
-const TIMES = 2;
-const BETWEEN = 90;
-
-/** Somewhere between these, so she never falls into a rhythm. */
-const GAP_MIN = 3800;
-const GAP_MAX = 9000;
-
 export function PlanMark({
   size = 44,
   label,
@@ -64,7 +52,7 @@ export function PlanMark({
   animate?: boolean;
   className?: string;
 }) {
-  const [shut, setShut] = useState(0);
+  const shut = useBlink(animate);
   const [writing, setWriting] = useState(false);
 
   // Somebody who has asked their computer for less movement has asked for this
@@ -73,41 +61,6 @@ export function PlanMark({
   // starts, and keeping it in state means a render just to learn it.
   const wanted = () =>
     animate && !window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-
-  useEffect(() => {
-    if (!wanted()) return;
-    let stopped = false;
-    let timers: ReturnType<typeof setTimeout>[] = [];
-    const later = (fn: () => void, ms: number) => {
-      timers.push(setTimeout(fn, ms));
-    };
-
-    const once = () => {
-      if (stopped) return;
-      let at = 0;
-      for (let i = 0; i < TIMES; i++) {
-        later(() => setShut(1), at);
-        at += CLOSING + HELD;
-        later(() => setShut(0), at);
-        at += OPENING;
-        if (i < TIMES - 1) at += BETWEEN;
-      }
-      later(schedule, at);
-    };
-
-    const schedule = () => {
-      if (stopped) return;
-      timers = [];
-      later(once, GAP_MIN + Math.random() * (GAP_MAX - GAP_MIN));
-    };
-
-    schedule();
-    return () => {
-      stopped = true;
-      for (const t of timers) clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animate]);
 
   useEffect(() => {
     if (!wanted()) return;

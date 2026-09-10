@@ -20,6 +20,12 @@ export const KEYS = {
   // Whether the first-run walkthrough has been seen or skipped.
   tourSeen: "innerly:tour-seen",
   tasksPrefix: "innerly:tasks:",
+  // What was left on a day when it closed, written once as the day turns, so
+  // the evening check-in can name it exactly rather than guessing from what
+  // happens to be on the list now.
+  missedPrefix: "innerly:missed:",
+  // The last day already asked about, whatever the answer was.
+  missedAsked: "innerly:missed-asked",
   // Activities are derived from your data, so "deleting" one hides it here
   // rather than destroying the vision, goal or task behind it.
   activitiesHidden: "innerly:activities-hidden",

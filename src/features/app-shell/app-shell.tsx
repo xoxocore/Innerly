@@ -22,6 +22,8 @@ import { Wordmark } from "@/components/innerly/wordmark";
 import { copy } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 import { useApp, type View } from "@/state/app-context";
+import { MissedCheckIn } from "@/features/notifications/missed-check-in";
+import { useDayTurn } from "@/state/use-data";
 
 type NavItem = { view: View; label: string; icon: typeof Home };
 
@@ -132,6 +134,13 @@ function SectionLabel({ children }: { children: ReactNode }) {
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
+  // The day turns when you open the app, not when you happen to visit the
+  // planner. It used to live on that one page, which meant a week away and
+  // then a look at the dashboard showed a Today list from last Tuesday — and
+  // meant the evening check-in never learned what a goal had been left
+  // holding, because the note is taken as the day turns.
+  useDayTurn();
+
   return (
     <div className="flex min-h-dvh flex-col bg-background lg:flex-row">
       {/* Desktop sidebar — frozen (sticky), solid glass */}
@@ -168,6 +177,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="app-bg flex-1">
         <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 lg:py-12">
+          {/* Above whatever page you arrived on, because it is about the day
+              rather than about any one screen — and it shows at most once. */}
+          <MissedCheckIn />
           {children}
         </div>
       </main>
