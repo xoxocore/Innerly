@@ -1,30 +1,25 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element */
-import { EYELID, EYES, MARK_SRC, SHUT } from "@/lib/logo";
-import { CLOSING, OPENING, useBlink } from "./use-blink";
+import {
+  REFLECT_EYELID,
+  REFLECT_EYES,
+  REFLECT_SHUT,
+  REFLECT_SRC,
+} from "@/lib/reflect-jelly";
 import { cn } from "@/lib/utils";
+import { CLOSING, OPENING, useBlink } from "./use-blink";
 
 /**
- * Jelly.
+ * Jelly, holding a heart.
  *
- * The artwork is drawn exactly as it was handed over — the only thing removed
- * from the file was the white behind her.
- *
- * She blinks by having a lid in her own skin colour drawn over each eye for a
- * moment and then taken away. Nothing about the drawing is edited to do it, so
- * the face at rest is the original picture and a blink cannot damage it. The
- * lid stops short of the bottom of the eye, which leaves the eye's own dark
- * edge showing as the closed line rather than inventing a new shape for it.
- *
- * She blinks twice each time, the way a person does when they are pleased to
- * see you — the timing of that lives in useBlink, which all three Jellys share.
+ * She turns up on the one screen in the app that asks about something that did
+ * not go well, so she does nothing but be there and blink. Anything more
+ * animated would be a mascot performing at somebody having a hard day.
  */
-
-export function Mark({
-  size = 26,
+export function ReflectMark({
+  size = 48,
   label,
-  /** Off for a still Jelly — a favicon, a printed sheet, a test. */
   blink = true,
   className,
 }: {
@@ -44,7 +39,8 @@ export function Mark({
       className={cn("relative block shrink-0 select-none", className)}
     >
       <img
-        src={MARK_SRC}
+        src={REFLECT_SRC}
+        data-jelly="heart"
         alt=""
         width={size}
         height={size}
@@ -52,17 +48,18 @@ export function Mark({
         className="block"
         draggable={false}
       />
-      {EYES.map((eye, i) => (
+      {REFLECT_EYES.map((eye, i) => (
         <span
           key={i}
+          data-jelly="lid"
           aria-hidden
           style={{
             position: "absolute",
             left: `${eye.left * 100}%`,
             top: `${eye.top * 100}%`,
             width: `${eye.width * 100}%`,
-            height: `${eye.height * shut * SHUT * 100}%`,
-            background: EYELID,
+            height: `${eye.height * shut * REFLECT_SHUT * 100}%`,
+            background: REFLECT_EYELID,
             transition: `height ${shut ? CLOSING : OPENING}ms ease-in-out`,
             pointerEvents: "none",
           }}

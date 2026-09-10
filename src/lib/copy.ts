@@ -205,6 +205,9 @@ export const copy = {
     notifAllowDesc: "Gentle nudges and reminders from Innerly.",
     notifDailyLabel: "Daily reflection reminder",
     notifDailyDesc: "A quiet evening prompt to check in.",
+    notifMissedLabel: "Ask about what was left",
+    notifMissedDesc:
+      "Once, after a day has closed, Jelly names what stayed on your list and offers to look at why. Never more than once a day.",
   },
 } as const;
 

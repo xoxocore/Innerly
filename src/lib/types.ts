@@ -421,11 +421,19 @@ export type VisionYear = {
 export type Prefs = {
   notifications: boolean;
   dailyReminder: boolean;
+  /**
+   * Whether Jelly may mention, once, what was left on a day that has closed.
+   *
+   * On by default, and a single switch turns it off for good — a thing that
+   * brings up what did not go well has to be easy to stop.
+   */
+  missedCheckIn: boolean;
 };
 
 export const DEFAULT_PREFS: Prefs = {
   notifications: false,
   dailyReminder: true,
+  missedCheckIn: true,
 };
 
 // Soft palette used for goal accents / vision tiles (from v48).
